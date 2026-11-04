@@ -1,4 +1,4 @@
-import { checkDesign, type Design, type SolveOptions, type SolveResult } from './model';
+import { checkDesign, type Design, type SolveOptions, type SolveResult, type UncertainSolveResult } from './model';
 
 /**
  * Solve a design's steady-state hydraulics.
@@ -23,4 +23,13 @@ export function solve(design: Design, opts: SolveOptions = {}): SolveResult {
     };
   }
   throw new Error('The network solver is not implemented yet (milestone 1).');
+}
+
+/**
+ * Solve the likely, low and high cases. Pinned entry point; until milestone 1
+ * it has the same behaviour as `solve`, with all three cases identical.
+ */
+export function solveWithUncertainty(design: Design, opts: SolveOptions = {}): UncertainSolveResult {
+  const likely = solve(design, opts);
+  return { likely, low: likely, high: likely, varied: [] };
 }
