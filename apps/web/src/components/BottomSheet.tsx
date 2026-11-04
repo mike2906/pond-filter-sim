@@ -22,7 +22,7 @@ function snapHeight(snap: Snap, peek: number, container: number) {
 /** A draggable bottom sheet with three resting heights. Tap the handle to cycle. */
 export function BottomSheet({ snap, onSnap, peekHeight, header, peek, children }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ startY: number; startH: number; moved: boolean } | null>(null);
+  const drag = useRef<{ startY: number; startH: number; moved: boolean; h: number } | null>(null);
   const [dragHeight, setDragHeight] = useState<number | null>(null);
 
   const containerHeight = () => ref.current?.parentElement?.clientHeight ?? window.innerHeight;
@@ -30,7 +30,7 @@ export function BottomSheet({ snap, onSnap, peekHeight, header, peek, children }
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
       const startH = ref.current?.getBoundingClientRect().height ?? peekHeight;
-      drag.current = { startY: e.clientY, startH, moved: false };
+      drag.current = { startY: e.clientY, startH, moved: false, h: startH };
       (e.target as Element).setPointerCapture(e.pointerId);
     },
     [peekHeight],
@@ -43,7 +43,8 @@ export function BottomSheet({ snap, onSnap, peekHeight, header, peek, children }
     if (Math.abs(dy) > 4) d.moved = true;
     if (d.moved) {
       const max = containerHeight() * 0.9;
-      setDragHeight(Math.min(max, Math.max(peekHeight, d.startH + dy)));
+      d.h = Math.min(max, Math.max(peekHeight, d.startH + dy));
+      setDragHeight(d.h);
     }
   }, [peekHeight]);
 
@@ -55,7 +56,8 @@ export function BottomSheet({ snap, onSnap, peekHeight, header, peek, children }
       onSnap(ORDER[(ORDER.indexOf(snap) + 1) % ORDER.length] ?? 'peek');
       return;
     }
-    const h = dragHeight ?? d.startH;
+    // Read the height from the ref: state from this closure can be a frame stale on a fast flick.
+    const h = d.h;
     const c = containerHeight();
     let best: Snap = 'peek';
     let bestDist = Infinity;
@@ -68,7 +70,7 @@ export function BottomSheet({ snap, onSnap, peekHeight, header, peek, children }
     }
     setDragHeight(null);
     onSnap(best);
-  }, [dragHeight, onSnap, peekHeight, snap]);
+  }, [onSnap, peekHeight, snap]);
 
   const height = dragHeight ?? (snap === 'peek' ? peekHeight : snap === 'half' ? '50%' : '90%');
 

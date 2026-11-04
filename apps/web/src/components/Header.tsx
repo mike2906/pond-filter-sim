@@ -1,17 +1,25 @@
 import type { UnitSystem } from '@pond/engine';
 import type { ThemePref } from '../prefs';
+import { useDesign } from '../state/context';
+import { DesignMenu } from './DesignMenu';
 
 interface Props {
   units: UnitSystem;
   theme: ThemePref;
   onUnits: (u: UnitSystem) => void;
   onTheme: (t: ThemePref) => void;
+  onToast: (msg: string) => void;
 }
 
 const NEXT_THEME: Record<ThemePref, ThemePref> = { system: 'light', light: 'dark', dark: 'system' };
 const THEME_LABEL: Record<ThemePref, string> = { system: 'System theme', light: 'Light theme', dark: 'Dark theme' };
 
-export function Header({ units, theme, onUnits, onTheme }: Props) {
+export function Header({ units, theme, onUnits, onTheme, onToast }: Props) {
+  const canUndo = useDesign((s) => s.past.length > 0);
+  const canRedo = useDesign((s) => s.future.length > 0);
+  const undo = useDesign((s) => s.undo);
+  const redo = useDesign((s) => s.redo);
+  const name = useDesign((s) => s.design.name);
   return (
     <header className="header">
       <div className="brand">
@@ -22,28 +30,32 @@ export function Header({ units, theme, onUnits, onTheme }: Props) {
         </svg>
         <h1>
           Pond Filter Simulator
-          <small>Design with real hydraulics</small>
+          <small>{name}</small>
         </h1>
       </div>
-      <select
-        className="select"
-        aria-label="Units"
-        value={units}
-        onChange={(e) => onUnits(e.target.value as UnitSystem)}
-      >
-        <option value="metric">Metric</option>
-        <option value="imperial-uk">UK imperial</option>
-        <option value="imperial-us">US imperial</option>
-      </select>
-      <button
-        type="button"
-        className="icon-btn"
-        aria-label={`${THEME_LABEL[theme]}. Switch theme`}
-        title={THEME_LABEL[theme]}
-        onClick={() => onTheme(NEXT_THEME[theme])}
-      >
-        {theme === 'dark' ? <MoonIcon /> : theme === 'light' ? <SunIcon /> : <AutoIcon />}
-      </button>
+      <div className="header-actions">
+        <button type="button" className="icon-btn" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={undo}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 0 10h-3" /></svg>
+        </button>
+        <button type="button" className="icon-btn" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" disabled={!canRedo} onClick={redo}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5" /><path d="M20 9H9a5 5 0 0 0 0 10h3" /></svg>
+        </button>
+        <DesignMenu onToast={onToast} />
+        <select className="select" aria-label="Units" value={units} onChange={(e) => onUnits(e.target.value as UnitSystem)}>
+          <option value="metric">Metric</option>
+          <option value="imperial-uk">UK imperial</option>
+          <option value="imperial-us">US imperial</option>
+        </select>
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label={`${THEME_LABEL[theme]}. Switch theme`}
+          title={THEME_LABEL[theme]}
+          onClick={() => onTheme(NEXT_THEME[theme])}
+        >
+          {theme === 'dark' ? <MoonIcon /> : theme === 'light' ? <SunIcon /> : <AutoIcon />}
+        </button>
+      </div>
     </header>
   );
 }

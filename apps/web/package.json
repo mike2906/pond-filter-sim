@@ -8,12 +8,20 @@
     "build": "vite build",
     "preview": "vite preview --port 4173 --strictPort",
     "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
     "e2e": "playwright test"
   },
   "dependencies": {
     "@pond/engine": "*",
+    "@visx/axis": "^4.0.0",
+    "@visx/group": "^4.0.0",
+    "@visx/scale": "^4.0.0",
+    "@visx/shape": "^4.0.0",
+    "immer": "^11.2.9",
+    "lz-string": "^1.5.0",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "zustand": "^5.0.16"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
