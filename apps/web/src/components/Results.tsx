@@ -13,6 +13,12 @@ const CONFIDENCE_LABEL: Record<Confidence, string> = {
   unvalidated: 'Unvalidated',
 };
 
+const STATUS_TEXT: Record<Exclude<SolveResult['status'], 'ok'>, string> = {
+  'no-operating-point': 'No steady flow: the pumps or airlifts cannot supply the head this design needs. The warnings below say where.',
+  'did-not-converge': 'The solver could not settle on a steady state for this design. Often a chamber is being drawn down to a pump intake; try a bigger pipe or a smaller pump.',
+  'invalid-design': 'The design has a problem to fix before it can be solved. The warnings below point at it.',
+};
+
 export function ConfidenceChip({ c }: { c: Confidence | undefined }) {
   if (!c) return null;
   return <span className={`chip chip--${c}`}>{CONFIDENCE_LABEL[c]}</span>;
@@ -177,15 +183,28 @@ export function ResultsPanel({ units }: { units: UnitSystem }) {
         <h2>Results</h2>
         {solved && (
           <span className="muted small">
-            {solved.source === 'preview' ? 'Preview maths' : 'Engine'} · {solved.ms.toFixed(1)} ms
+            {solved.source === 'preview' ? 'Preview maths' : 'Network solver'} · {solved.ms.toFixed(1)} ms
           </span>
         )}
       </div>
       {solved?.source === 'preview' && (
         <p className="notice notice--preview">
-          These numbers come from placeholder maths (equal flow splits, rough media resistances) so the designer can be tried now. The real network solver replaces it automatically when it lands.
+          The network solver couldn't run this design, so these numbers come from simplified preview maths (equal flow splits, rough resistances). Treat them as illustrative.
         </p>
       )}
+      {solved?.source === 'mixed' && (
+        <p className="notice notice--preview">
+          Flows and levels come from the network solver, but{' '}
+          {solved.placeholders.map((id, i) => (
+            <span key={id}>
+              {i > 0 && (i === solved.placeholders.length - 1 ? ' and ' : ', ')}
+              <button type="button" className="link-btn" onClick={() => select(id)}>{nameOf(id)}</button>
+            </span>
+          ))}{' '}
+          {solved.placeholders.length === 1 ? 'uses a placeholder curve' : 'use placeholder curves'} until {solved.placeholders.length === 1 ? 'its model is' : 'their models are'} built (airlifts in milestone 3, filter stages in milestone 4). Their losses are rough estimates.
+        </p>
+      )}
+      {r && r.status !== 'ok' && <p className="notice notice--danger">{STATUS_TEXT[r.status]}</p>}
       <StatTiles stats={stats} />
       {solved && hasBand(solved.cases) && solved.cases.varied.length > 0 && (
         <p className="muted small">Ranges vary: {solved.cases.varied.join('; ')}.</p>

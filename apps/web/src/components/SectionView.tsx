@@ -230,8 +230,8 @@ export function SectionView({ design, cases, selection, onSelect, scale, units, 
     const toPond = b.node.kind === 'pond';
     const returnPath = (x: number, yStart: number) => {
       const lane = geom.returnLane;
-      const px = pondCol ? (pondCol.x0 + pondCol.x1) / 2 + 20 : 40;
-      const py = pondCol ? y((pondCol.node as { levelM: number }).levelM) - 4 : lane;
+      const px = (b.x0 + b.x1) / 2 + 20;
+      const py = y((b.node as { levelM: number }).levelM) - 4;
       return `M${x} ${yStart} V${lane} H${px} V${py}`;
     };
 
@@ -247,7 +247,7 @@ export function SectionView({ design, cases, selection, onSelect, scale, units, 
         } else {
           const xm = (xa + xb) / 2;
           d = `M${xa} ${y1} H${xm} V${y2} H${xb}`;
-          if (l.from === pondCol?.node.id) d = `M${a.x1 - 30} ${y1} H${xm} V${y2} H${xb}`;
+          if (a.node.kind === 'pond') d = `M${a.x1 - 30} ${y1} H${xm} V${y2} H${xb}`;
         }
         return (
           <g {...common}>
@@ -259,13 +259,14 @@ export function SectionView({ design, cases, selection, onSelect, scale, units, 
       }
       case 'opening': {
         const h = l.shape.type === 'circle' ? l.shape.diameterM : l.shape.heightM;
-        const wx = forward ? a.x1 : a.x0;
+        const wx = Math.min(xa, xb);
+        const ww = Math.abs(xb - xa);
         const top = y(l.invertM + h);
         const bot = y(l.invertM);
         return (
           <g {...common}>
-            <rect x={wx - 4} y={top} width={Math.abs(xb - xa) + 8} height={Math.max(3, bot - top)} rx="2" className="opening" />
-            <rect x={wx - 8} y={top - 6} width={Math.abs(xb - xa) + 16} height={bot - top + 12} className="hit" />
+            <rect x={wx - 4} y={top} width={ww + 8} height={Math.max(3, bot - top)} rx="2" className="opening" />
+            <rect x={wx - 8} y={top - 6} width={ww + 16} height={Math.max(3, bot - top) + 12} className="hit" />
           </g>
         );
       }
@@ -274,9 +275,9 @@ export function SectionView({ design, cases, selection, onSelect, scale, units, 
         const yc = y(crest);
         return (
           <g {...common}>
-            <path d={`M${xa - 6} ${yc} H${xb + 6}`} className="weir" />
+            <path d={`M${Math.min(xa, xb) - 6} ${yc} H${Math.max(xa, xb) + 6}`} className="weir" />
             <path d={`M${(xa + xb) / 2 - 5} ${yc - 8} l5 7 l5 -7`} className="weir-mark" />
-            <rect x={xa - 8} y={yc - 12} width={xb - xa + 16} height={20} className="hit" />
+            <rect x={Math.min(xa, xb) - 8} y={yc - 12} width={Math.abs(xb - xa) + 16} height={20} className="hit" />
           </g>
         );
       }
@@ -288,7 +289,7 @@ export function SectionView({ design, cases, selection, onSelect, scale, units, 
             {Array.from({ length: 5 }, (_, i) => (
               <line key={i} x1={xa + ((xb - xa) * (i + 0.5)) / 5} x2={xa + ((xb - xa) * (i + 0.5)) / 5} y1={top} y2={bot} className="grille" />
             ))}
-            <rect x={xa} y={top} width={xb - xa} height={bot - top} className="hit" />
+            <rect x={Math.min(xa, xb)} y={top} width={Math.abs(xb - xa)} height={bot - top} className="hit" />
           </g>
         );
       }
@@ -299,7 +300,7 @@ export function SectionView({ design, cases, selection, onSelect, scale, units, 
           <g {...common}>
             <path d={`M${xa} ${yv} H${xb}`} className="pipe" style={{ strokeWidth: 6 }} />
             <path d={`M${xm - 9} ${yv - 8} L${xm + 9} ${yv + 8} V${yv - 8} L${xm - 9} ${yv + 8} Z`} className="valve" />
-            <rect x={xa} y={yv - 12} width={xb - xa} height={24} className="hit" />
+            <rect x={Math.min(xa, xb)} y={yv - 12} width={Math.abs(xb - xa)} height={24} className="hit" />
           </g>
         );
       }
@@ -328,7 +329,7 @@ export function SectionView({ design, cases, selection, onSelect, scale, units, 
         const yOut = y(outlet);
         const yInj = y(l.injectionElevationM);
         const bubbles = Array.from({ length: 9 }, (_, k) => yInj - ((yInj - yOut) * (k + 0.5)) / 9);
-        const d = toPond ? `M${rx} ${yOut} V${geom.returnLane} H${pondCol ? (pondCol.x0 + pondCol.x1) / 2 + 20 : 40} V${pondCol ? y(0) - 4 : 0}` : `M${rx} ${yOut} H${xb}`;
+        const d = toPond ? returnPath(rx, yOut) : `M${rx} ${yOut} H${xb}`;
         return (
           <g {...common}>
             <path d={`M${rx} ${yIn} V${yOut}`} className="riser" />
@@ -426,7 +427,10 @@ function ChamberShape({
       {top !== undefined && <line x1={c.x0} x2={c.x1} y1={top} y2={top} className="waterline" />}
       <path d={`M${c.x0} ${crest} V${floor} H${c.x1} V${crest}`} className="wall" />
       {n.shape.type === 'round' && <path d={`M${c.x0 + 6} ${floor} L${cx} ${floor - 18} L${c.x1 - 6} ${floor}`} className="wall wall--soft" />}
-      <text x={cx} y={floor + 18} textAnchor="middle" className="t-label">{n.name}</text>
+      <text x={cx} y={floor + 18} textAnchor="middle" className="t-label">
+        <title>{n.name}</title>
+        {fitLabel(n.name, c.x1 - c.x0 + 20)}
+      </text>
       {lv !== undefined && top !== undefined && (
         <text x={cx} y={top - 6} textAnchor="middle" className={`t-level${overflow ? ' t-danger' : ''}`}>
           {overflow ? 'Overflow' : fmtText(lv, 'elevation', units, { signed: true })}
@@ -494,4 +498,10 @@ function StageShape({
       <rect x={x0} y={y(surface)} width={x1 - x0} height={Math.max(10, y(floor) - y(surface))} className="hit" />
     </g>
   );
+}
+
+/** Truncate a label to roughly fit `width` user units at the 12-unit label size. */
+function fitLabel(name: string, width: number): string {
+  const max = Math.max(3, Math.floor(width / 6.6));
+  return name.length > max ? `${name.slice(0, max - 1)}…` : name;
 }

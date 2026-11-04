@@ -3,7 +3,7 @@ import { scaleLinear } from '@visx/scale';
 import { useEffect, useMemo, useState } from 'react';
 import { solver } from '../solver/client';
 import type { GoalSeekResult, SweepPoint } from '../solver/explore';
-import { lastChamber, type Metric } from '../solver/metrics';
+import { lastChamber, readMetric, type Metric } from '../solver/metrics';
 import { getParam, type ParamRef } from '../solver/paths';
 import { useDesign, useDesignStore } from '../state/context';
 import { LINK_KIND_LABEL } from '../state/factory';
@@ -89,10 +89,14 @@ export function ExplorePanel({ units }: { units: UnitSystem }) {
 
   const [points, setPoints] = useState<SweepPoint[] | null>(null);
   const [busy, setBusy] = useState(false);
-  const [goal, setGoal] = useState<number | null>(null);
+  const [goalSet, setGoal] = useState<{ key: string; v: number } | null>(null);
   const [seek, setSeek] = useState<GoalSeekResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const metricKey = JSON.stringify(metric);
+  const nowValue = solved ? readMetric(design, solved.result, metric) : Number.NaN;
+  // The target starts at today's value for whatever is being watched.
+  const goal = goalSet && goalSet.key === metricKey ? goalSet.v : Number.isFinite(nowValue) ? nowValue : null;
   // A changed question invalidates old answers.
   const questionKey = `${rangeKey}|${r.min}|${r.max}|${JSON.stringify(metric)}`;
   useEffect(() => {
@@ -209,10 +213,10 @@ export function ExplorePanel({ units }: { units: UnitSystem }) {
       <div className="sub">
         <h3>Goal seek</h3>
         <div className="explore-grid">
-          <NumberField label={`Target ${METRIC_LABEL[metricKind].toLowerCase()}`} value={goal ?? 0} quantity={mq} units={units} onChange={(v) => setGoal(v)} />
+          <NumberField label={`Target ${METRIC_LABEL[metricKind].toLowerCase()}`} value={goal ?? 0} quantity={mq} units={units} onChange={(v) => setGoal({ key: metricKey, v })} />
           <div className="field field--end">
             <button type="button" className="btn" onClick={runSeek} disabled={busy || goal === null}>
-              Find {field.label.toLowerCase()}
+              Find value
             </button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import type { CurvePoint, Design } from '@pond/engine';
+import { swimPondBridge, twinRadialModules } from '@pond/engine/fixtures/reference-designs';
 import { simpleGravityAirlift } from '@pond/engine/fixtures/simple-gravity-airlift';
 
 const m3h = (q: number) => q / 3600;
@@ -104,6 +105,8 @@ export const TEMPLATES: Template[] = [
   { id: 'gravity-pump', name: 'Gravity-fed, pump return', blurb: 'Bottom drain, vortex, brushes and K1, with a pump back to the pond.', design: gravityPump },
   { id: 'pump-beads', name: 'Pump-fed bead filter', blurb: 'A pump pushes water through a pressurised bead filter and back.', design: pumpBeads },
   { id: 'gravity-airlift', name: 'Gravity-fed, airlift return', blurb: 'Airlift return. Airlift maths is a placeholder until milestone 3.', design: simpleGravityAirlift },
+  { id: 'ref-swim-bridge', name: 'Your swim-pond filter bridge', blurb: 'Two pond zones, forebay, brush chamber, main return and wetland branch. Airlifts are stood in by low-head pumps for now.', design: swimPondBridge },
+  { id: 'ref-twin-radial', name: 'Your twin radial modules', blurb: 'Prefilter feeding two radial media modules in parallel. Airlifts are stood in by low-head pumps for now.', design: twinRadialModules() },
   { id: 'blank', name: 'Blank', blurb: 'Just a pond. Add chambers and connections from the inspector.', design: blank },
 ];
 

@@ -2,6 +2,7 @@ import type { Design, Id, Link } from '@pond/engine';
 import { enableMapSet, produce, type Draft } from 'immer';
 import { create } from 'zustand';
 import type { Solved } from '../solver/run';
+import { withAutoLayout } from '../components/layout';
 import { makeLink, makeNode, type LinkKind, type NodeKind } from './factory';
 
 enableMapSet();
@@ -38,7 +39,7 @@ function push(past: Design[], d: Design) {
 
 export function createDesignStore(initial: Design) {
   return create<DesignState>()((set, get) => ({
-    design: initial,
+    design: withAutoLayout(initial),
     past: [],
     future: [],
     selection: null,
@@ -47,7 +48,7 @@ export function createDesignStore(initial: Design) {
 
     load: (design, opts) =>
       set((s) => ({
-        design,
+        design: withAutoLayout(design),
         past: opts?.fresh ? [] : push(s.past, s.design),
         future: [],
         selection: null,

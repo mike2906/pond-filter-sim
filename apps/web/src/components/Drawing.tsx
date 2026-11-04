@@ -79,8 +79,13 @@ export function Drawing({ view, onView, scale, onScale, units, allowBoth }: Prop
           </div>
         )}
         {solved?.source === 'preview' && (
-          <span className="badge badge--preview" title="The engine's network solver isn't finished yet. Results come from simplified placeholder maths.">
+          <span className="badge badge--preview" title="The engine couldn't run this design, so simplified preview maths is shown.">
             Preview maths
+          </span>
+        )}
+        {solved?.source === 'mixed' && (
+          <span className="badge badge--preview" title="Some elements use placeholder curves until their models are built.">
+            {solved.placeholders.length} placeholder{solved.placeholders.length === 1 ? '' : 's'}
           </span>
         )}
       </div>

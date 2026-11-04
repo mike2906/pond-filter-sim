@@ -165,7 +165,7 @@ function interpolate(points: { x: number; y: number }[], x: number): number {
   return p[p.length - 1]!.y;
 }
 
-function passiveLoss(l: Link, q: number, nu: number): LinkLoss {
+export function passiveLoss(l: Link, q: number, nu: number): LinkLoss {
   const aq = Math.abs(q);
   switch (l.kind) {
     case 'pipe':
@@ -224,7 +224,7 @@ function airLpm(l: Extract<Link, { kind: 'airlift' }>): number {
 }
 
 /** Head a driver adds at flow q (m). */
-function driverHead(l: Link, q: number): number {
+export function driverHead(l: Link, q: number): number {
   if (l.kind === 'pump') {
     const s = Math.max(0.05, l.speedFraction);
     const pts = l.curve.map((p) => ({ x: p.flowM3s, y: p.headM }));
@@ -241,7 +241,7 @@ function driverHead(l: Link, q: number): number {
 }
 
 /** Largest flow a driver can produce (head 0), used to bracket the search. */
-function driverMaxFlow(l: Link): number {
+export function driverMaxFlow(l: Link): number {
   if (l.kind === 'pump') return Math.max(...l.curve.map((p) => p.flowM3s), 0) * Math.max(0.05, l.speedFraction);
   if (l.kind === 'airlift') {
     const air = airLpm(l);
@@ -251,6 +251,11 @@ function driverMaxFlow(l: Link): number {
 }
 
 let airliftScale = 1;
+
+/** Sets the placeholder airlift scale for driverHead/driverMaxFlow calls outside previewSolve. */
+export function setAirliftScale(k: number) {
+  airliftScale = k;
+}
 
 const isDriver = (l: Link) => l.kind === 'pump' || l.kind === 'airlift';
 const sum = (parts: { headLossM: number }[]) => parts.reduce((s, p) => s + p.headLossM, 0);

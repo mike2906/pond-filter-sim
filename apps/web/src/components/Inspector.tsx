@@ -64,7 +64,7 @@ function DesignOverview({ design, units }: { design: Design; units: UnitSystem }
     <>
       <div className="field">
         <label htmlFor="design-name">Design name</label>
-        <input id="design-name" className="text" defaultValue={design.name} onBlur={(e) => e.target.value !== design.name && edit((d) => void (d.name = e.target.value || 'Untitled'))} />
+        <input id="design-name" key={design.name} className="text" defaultValue={design.name} onBlur={(e) => e.target.value !== design.name && edit((d) => void (d.name = e.target.value || 'Untitled'))} />
       </div>
       <NumberField label="Water temperature" value={design.water.tempC} quantity="temperature" units={units} min={0} max={40} onChange={(v) => edit((d) => void (d.water.tempC = v))} hint="Viscosity nearly doubles between 25 °C and 2 °C." />
 
@@ -176,7 +176,7 @@ function ElementEditor({ el, design, units }: { el: Node | Link; design: Design;
       </div>
       <div className="field">
         <label htmlFor={`name-${el.id}`}>Name</label>
-        <input id={`name-${el.id}`} className="text" defaultValue={name} onBlur={(e) => e.target.value !== name && update('name', e.target.value)} />
+        <input id={`name-${el.id}`} key={name} className="text" defaultValue={name} onBlur={(e) => e.target.value !== name && update('name', e.target.value)} />
       </div>
 
       <ElementResult id={el.id} units={units} />
