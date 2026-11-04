@@ -1,0 +1,1 @@
+test_id,date,riser_id_m,riser_material,riser_length_m,injection_depth_below_pond_surface_m,lift_above_pond_surface_m,outlet_type,injector_type,air_pump_model,air_flow_lpm,air_flow_method,water_flow_lpm,water_flow_method,water_temp_c,notes

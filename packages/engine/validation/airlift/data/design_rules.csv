@@ -1,0 +1,9 @@
+source_id,rule,value,units,quote
+pfeiffer_malone2008,max static lift,0.305,m,"Set the static water lift back into the tank at no more than 30.5 cm."
+pfeiffer_malone2008,min riser water velocity,0.61,m/s,"projected water flow velocity in the pipe is at least 61.0 cm per second"
+pfeiffer_malone2008,submergence:lift ratio,>0.80 (see note),-,"Maintain a submergence:lift ratio of greater than 80 percent. For example, if the water must be airlifted 15.2 cm back into the tank, air injection in the lift pipe is placed 76.2 cm below the lift point. [Note: the worked example gives submergence/(submergence+lift) = 61/76.2 = 0.80, i.e. this is the classic submergence ratio, not submergence/lift.]"
+malone_was,design riser velocity,0.457 (1.5 ft/s),m/s,"recirculate water at a flow rate of 1.5 ft/sec with submergence to lift ratio of 0.25"
+malone_was,lift-to-submergence,0.25,-,"submergence to lift ratio of 0.25 [as printed; with 5 ft injection and 15 in lift this is lift/injection depth = 0.25]"
+malone_was,design gas:liquid ratio,2 (design) / 1.3 (typical operation),-,"Air pumps are sized with a conservative gas to liquid ratio of 2 with a typical operational ratio of 1.3."
+malone_was,max injection depth,1.52 (5 ft),m,"The injection depth (lift) is typically limited to 5 feet"
+malone_was,max total lift,0.381 (15 in),m,"This in turn limits the total lift to 15 inches with a favorable gas to liquid ratio below 1.5."
