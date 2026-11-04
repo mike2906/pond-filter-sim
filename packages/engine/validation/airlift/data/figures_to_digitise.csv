@@ -1,0 +1,9 @@
+source_id,figure,x_axis,y_axis,series,priority,licence,why
+loyless1995,Fig 4.1,gas flow (scfm),water flow,five submergence ratios; 2 in riser,1,LSU repository,closest open data to Loyless & Malone 1998 fit
+loyless1995,Fig 4.3,gas flow (scfm),water flow,lifts 3-12 in at 36 in submergence; 2 in riser; open tubes,1,LSU repository,low-lift family; directly tests low-lift default
+loyless1995,Appendix D,tables,tables,flowrate data collection summary,1,LSU repository,"raw numbers, no digitising needed"
+hearn2009,data tables/figures,air flow (L/min),water flow (L/min),20.3 cm riser at 30.5/38.1/45.7 cm lift,1,LSU repository,largest-diameter low-lift aquaculture data found
+aboutaleb2017,Fig 3a-c,Ja (m/s) 0-4,Jw (m/s) 0-1,Sr 18/25.8/33.6/41.4/49.2 %,2,CC BY 4.0,low-submergence family; redistributable
+ligus2019,Fig 11,gas flow,liquid flow/efficiency,3 distributors at Hl=1.0 m Sr 0.5,3,CC BY 3.0,distributor effect
+alasadi2016,Fig 4a-c,air mass flow (kg/h),water mass flow (kg/h),Sr 0.5/0.6/0.75,3,not stated,full curves for 42 mm
+dung2023,Fig 5,V (m3/h) 0-1.1,Q (L/min) 0-35,alpha 0.285/0.21/0.135,4,CC BY-NC 4.0,small diameter
