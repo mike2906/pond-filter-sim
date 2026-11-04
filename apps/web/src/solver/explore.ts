@@ -11,16 +11,23 @@ export interface SweepPoint {
 }
 
 /** Evaluate `metric` at `steps` evenly spaced values of one parameter. */
-export function sweep(design: Design, param: ParamRef, min: number, max: number, steps: number, metric: Metric, solveFn: SolveFn): SweepPoint[] {
+/** Solve with one parameter changed and read the metric off that same design. */
+function evalAt(design: Design, param: ParamRef, x: number, metric: Metric, solveFn: SolveFn) {
+  const d = withParam(design, param, x);
+  const r = solveFn(d);
+  return { r, y: readMetric(d, r, metric) };
+}
+
+/** Evaluate `metric` at `steps` evenly spaced values of one parameter. Integer parameters step by whole numbers. */
+export function sweep(design: Design, param: ParamRef, min: number, max: number, steps: number, metric: Metric, solveFn: SolveFn, integer = false): SweepPoint[] {
   const n = Math.max(2, Math.min(200, Math.round(steps)));
-  const out: SweepPoint[] = [];
-  for (let i = 0; i < n; i++) {
-    const x = min + ((max - min) * i) / (n - 1);
-    const r = solveFn(withParam(design, param, x));
-    const y = readMetric(design, r, metric);
-    out.push({ x, y, ok: r.status === 'ok' && Number.isFinite(y) });
-  }
-  return out;
+  const xs = integer
+    ? Array.from({ length: Math.floor(max) - Math.ceil(min) + 1 }, (_, i) => Math.ceil(min) + i).filter((_, i, a) => a.length <= n || i % Math.ceil(a.length / n) === 0)
+    : Array.from({ length: n }, (_, i) => min + ((max - min) * i) / (n - 1));
+  return xs.map((x) => {
+    const { r, y } = evalAt(design, param, x, metric, solveFn);
+    return { x, y, ok: r.status === 'ok' && Number.isFinite(y) };
+  });
 }
 
 export type GoalSeekResult =
@@ -31,16 +38,26 @@ export type GoalSeekResult =
  * Find the parameter value in [min, max] where `metric` equals `target`.
  * Scans first (the response need not be monotonic), then bisects the first bracket.
  */
-export function goalSeek(design: Design, param: ParamRef, min: number, max: number, metric: Metric, target: number, solveFn: SolveFn): GoalSeekResult {
-  const f = (x: number) => readMetric(design, solveFn(withParam(design, param, x)), metric) - target;
+export function goalSeek(design: Design, param: ParamRef, min: number, max: number, metric: Metric, target: number, solveFn: SolveFn, integer = false): GoalSeekResult {
+  if (integer) {
+    // Whole numbers only: pick the count that lands closest to the target.
+    const pts = sweep(design, param, min, max, 200, metric, solveFn, true).filter((p) => p.ok);
+    if (pts.length === 0) return { ok: false, reason: 'No value in this range gives a steady solution.' };
+    const best = pts.reduce((a, b) => (Math.abs(b.y - target) < Math.abs(a.y - target) ? b : a));
+    const brackets = pts.some((p) => p.y >= target) && pts.some((p) => p.y <= target);
+    return brackets
+      ? { ok: true, value: best.x, achieved: best.y, iterations: pts.length }
+      : { ok: false, reason: 'The target is not reached anywhere in this range.', closest: { value: best.x, achieved: best.y } };
+  }
+  const f = (x: number) => evalAt(design, param, x, metric, solveFn).y - target;
   const scan = 24;
   let prevX = min;
   let prevF = f(min);
-  let closest = { value: min, achieved: prevF + target };
+  let closest: { value: number; achieved: number } | undefined = Number.isFinite(prevF) ? { value: min, achieved: prevF + target } : undefined;
   for (let i = 1; i <= scan; i++) {
     const x = min + ((max - min) * i) / scan;
     const fx = f(x);
-    if (Number.isFinite(fx) && Math.abs(fx) < Math.abs(closest.achieved - target)) closest = { value: x, achieved: fx + target };
+    if (Number.isFinite(fx) && (!closest || Math.abs(fx) < Math.abs(closest.achieved - target))) closest = { value: x, achieved: fx + target };
     if (Number.isFinite(prevF) && Number.isFinite(fx) && Math.sign(prevF) !== Math.sign(fx)) {
       let lo = prevX;
       let hi = x;
@@ -61,5 +78,7 @@ export function goalSeek(design: Design, param: ParamRef, min: number, max: numb
     prevX = x;
     prevF = fx;
   }
-  return { ok: false, reason: 'The target is not reached anywhere in this range.', closest };
+  return closest
+    ? { ok: false, reason: 'The target is not reached anywhere in this range.', closest }
+    : { ok: false, reason: 'No value in this range gives a steady solution.' };
 }

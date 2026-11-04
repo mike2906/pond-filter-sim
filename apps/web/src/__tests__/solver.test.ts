@@ -71,3 +71,18 @@ describe('preview fallback', () => {
     expect(r.status).toBe('no-operating-point');
   });
 });
+
+describe('review fixes', () => {
+  const d = TEMPLATES.find((t) => t.id === 'gravity-pump')!.design;
+
+  it('reads metrics off the swept design, not the original', () => {
+    // Raising the pond level moves every chamber with it; drawdown below the pond barely changes.
+    const pts = sweep(d, { elementId: 'pond', path: 'levelM' }, 0, 0.05, 3, { kind: 'drawdown', id: 'pump-bay' }, runSolveLikely);
+    expect(Math.abs(pts[2]!.y - pts[0]!.y)).toBeLessThan(0.01);
+  });
+
+  it('sweeps integer inputs by whole numbers', () => {
+    const pts = sweep(d, { elementId: 'drain', path: 'parallelCount' }, 1, 4, 40, { kind: 'total-flow' }, runSolveLikely, true);
+    expect(pts.map((p) => p.x)).toEqual([1, 2, 3, 4]);
+  });
+});

@@ -21,7 +21,7 @@ export function DesignProvider({ initial, children }: { initial: Design; childre
       const mine = ++seq;
       store.getState().setSolving(true);
       const prev = store.getState().solved;
-      const initialResult = prev?.source === 'engine' && prev.result.status === 'ok' ? prev.result : undefined;
+      const initialResult = prev && prev.source !== 'preview' && prev.result.status === 'ok' ? prev.result : undefined;
       void solver.solve(design, initialResult).then((solved) => {
         if (mine !== seq) return; // a newer design is already solving
         store.getState().setSolved(solved);
@@ -31,8 +31,12 @@ export function DesignProvider({ initial, children }: { initial: Design; childre
     run(store.getState().design);
     const unsub = store.subscribe((s, prev) => {
       if (s.design === prev.design) return;
-      clearTimeout(timer);
-      timer = setTimeout(() => run(s.design), 40);
+      // Moving things in the plan changes nothing hydraulic, so don't re-solve for it.
+      const hydraulicChange = s.design.nodes !== prev.design.nodes || s.design.links !== prev.design.links || s.design.water !== prev.design.water;
+      if (hydraulicChange) {
+        clearTimeout(timer);
+        timer = setTimeout(() => run(s.design), 40);
+      }
       clearTimeout(saveTimer);
       saveTimer = setTimeout(() => saveAutosave(s.design), 400);
     });

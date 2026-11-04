@@ -47,6 +47,11 @@ export function NumberField({ label, value, quantity, units, onChange, min, max,
       setText(String(shown));
       return;
     }
+    // Leaving a field without changing what it shows must not write the rounded value back.
+    if (n === shown) {
+      setText(String(shown));
+      return;
+    }
     const si = clamp(fromDisplay(n, quantity, units));
     if (si !== value) onChange(si);
     setText(String(roundShown(toDisplay(si, quantity, units), quantity, units)));

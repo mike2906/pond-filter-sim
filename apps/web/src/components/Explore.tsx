@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { solver } from '../solver/client';
 import type { GoalSeekResult, SweepPoint } from '../solver/explore';
 import { lastChamber, readMetric, type Metric } from '../solver/metrics';
-import { getParam, type ParamRef } from '../solver/paths';
+import { getParam, setPath as setAtPath, type ParamRef } from '../solver/paths';
 import { useDesign, useDesignStore } from '../state/context';
 import { LINK_KIND_LABEL } from '../state/factory';
-import { elementFields, type FieldDesc } from '../state/fields';
+import { elementFields, OPTIONAL_DEFAULTS, type FieldDesc } from '../state/fields';
 import { fmt, fmtText, toDisplay, type Quantity } from '../units/quantities';
 import { useElementSize } from '../hooks/useElementSize';
 import { NumberField } from './NumberField';
@@ -62,7 +62,7 @@ export function ExplorePanel({ units }: { units: UnitSystem }) {
   const [path, setPath] = useState<string>(fields[0]?.path ?? '');
   const field: FieldDesc | undefined = fields.find((f) => f.path === path) ?? fields[0];
   const param: ParamRef | null = el && field ? { elementId: el.id, path: field.path } : null;
-  const current = param ? getParam(design, param) : undefined;
+  const current = param ? (getParam(design, param) ?? OPTIONAL_DEFAULTS[param.path]) : undefined;
 
   const [range, setRange] = useState<{ key: string; min: number; max: number } | null>(null);
   const rangeKey = param ? `${param.elementId}:${param.path}` : '';
@@ -109,7 +109,7 @@ export function ExplorePanel({ units }: { units: UnitSystem }) {
     setBusy(true);
     setError(null);
     try {
-      setPoints(await solver.sweep({ design, param, min: r.min, max: r.max, steps: 40, metric }));
+      setPoints(await solver.sweep({ design, param, min: r.min, max: r.max, steps: 40, metric, integer: !!field?.integer }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -121,7 +121,7 @@ export function ExplorePanel({ units }: { units: UnitSystem }) {
     setBusy(true);
     setError(null);
     try {
-      setSeek(await solver.goalSeek({ design, param, min: r.min, max: r.max, metric, target: goal }));
+      setSeek(await solver.goalSeek({ design, param, min: r.min, max: r.max, metric, target: goal, integer: !!field?.integer }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -133,10 +133,7 @@ export function ExplorePanel({ units }: { units: UnitSystem }) {
     store.getState().edit((d) => {
       const t = d.nodes.find((n) => n.id === param.elementId) ?? d.links.find((l) => l.id === param.elementId);
       if (!t) return;
-      const keys = param.path.split('.');
-      let cur = t as unknown as Record<string, unknown>;
-      for (const k of keys.slice(0, -1)) cur = cur[k] as Record<string, unknown>;
-      cur[keys[keys.length - 1]!] = field?.integer ? Math.round(v) : v;
+      setAtPath(t, param.path, field?.integer ? Math.round(v) : v);
     });
   };
 

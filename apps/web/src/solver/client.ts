@@ -1,8 +1,8 @@
 import type { Design, SolveResult } from '@pond/engine';
-import type { GoalSeekResult, SweepPoint } from './explore';
+import { goalSeek, sweep, type GoalSeekResult, type SweepPoint } from './explore';
 import type { Metric } from './metrics';
 import type { ParamRef } from './paths';
-import { runSolve, type Solved } from './run';
+import { runSolve, runSolveLikely, type Solved } from './run';
 import type { WorkerRequest } from './worker';
 
 type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void };
@@ -54,12 +54,20 @@ class SolverClient {
     }
   }
 
-  sweep(body: { design: Design; param: ParamRef; min: number; max: number; steps: number; metric: Metric }): Promise<SweepPoint[]> {
-    return this.call<SweepPoint[]>('sweep', body satisfies Body<'sweep'>);
+  async sweep(body: Body<'sweep'>): Promise<SweepPoint[]> {
+    try {
+      return await this.call<SweepPoint[]>('sweep', body);
+    } catch {
+      return sweep(body.design, body.param, body.min, body.max, body.steps, body.metric, runSolveLikely, !!body.integer);
+    }
   }
 
-  goalSeek(body: { design: Design; param: ParamRef; min: number; max: number; metric: Metric; target: number }): Promise<GoalSeekResult> {
-    return this.call<GoalSeekResult>('goal-seek', body satisfies Body<'goal-seek'>);
+  async goalSeek(body: Body<'goal-seek'>): Promise<GoalSeekResult> {
+    try {
+      return await this.call<GoalSeekResult>('goal-seek', body);
+    } catch {
+      return goalSeek(body.design, body.param, body.min, body.max, body.metric, body.target, runSolveLikely, !!body.integer);
+    }
   }
 }
 

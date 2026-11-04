@@ -3,6 +3,7 @@ import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from
 
 const AUTOSAVE_KEY = 'pond-filter-sim:design:v1';
 const HASH_PREFIX = '#d=';
+const LINK_KINDS: string[] = ['pipe', 'opening', 'weir', 'grille', 'stage', 'valve', 'pump', 'airlift'];
 
 export type ParseResult = { ok: true; design: Design } | { ok: false; error: string };
 
@@ -24,7 +25,7 @@ export function parseDesign(raw: unknown): ParseResult {
     }
   }
   for (const l of d.links) {
-    if (!l || typeof l !== 'object' || typeof l.id !== 'string' || typeof l.from !== 'string' || typeof l.to !== 'string') {
+    if (!l || typeof l !== 'object' || typeof l.id !== 'string' || typeof l.from !== 'string' || typeof l.to !== 'string' || !LINK_KINDS.includes(l.kind)) {
       return { ok: false, error: 'The design has a connection it does not recognise.' };
     }
   }

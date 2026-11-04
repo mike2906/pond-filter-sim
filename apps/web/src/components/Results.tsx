@@ -17,6 +17,7 @@ const STATUS_TEXT: Record<Exclude<SolveResult['status'], 'ok'>, string> = {
   'no-operating-point': 'No steady flow: the pumps or airlifts cannot supply the head this design needs. The warnings below say where.',
   'did-not-converge': 'The solver could not settle on a steady state for this design. Often a chamber is being drawn down to a pump intake; try a bigger pipe or a smaller pump.',
   'invalid-design': 'The design has a problem to fix before it can be solved. The warnings below point at it.',
+  unsupported: 'This design uses parts the solver cannot model yet.',
 };
 
 export function ConfidenceChip({ c }: { c: Confidence | undefined }) {
@@ -79,6 +80,17 @@ export function keyStats(design: Design, cases: UncertainSolveResult | null, uni
     const name = design.nodes.find((n) => n.id === last)?.name ?? 'last chamber';
     stats.push({ key: `Drawdown, ${name}`, ...banded(dd(r), dd(cases.low), dd(cases.high), 'head', units) });
   }
+  // Running cost: pumps and airlifts compared on one footing.
+  const powered = design.links.filter((l) => (l.kind === 'pump' || l.kind === 'airlift') && r.links[l.id]?.energy);
+  if (powered.length) {
+    const watts = powered.reduce((s, l) => s + (r.links[l.id]!.energy!.electricalW), 0);
+    const pumped = powered.reduce((s, l) => s + Math.max(0, r.links[l.id]!.flowM3s), 0);
+    stats.push({ key: 'Power', value: watts.toFixed(0), unit: 'W' });
+    if (watts > 0) {
+      const f = fmt(pumped / watts, 'flow', units);
+      stats.push({ key: 'Flow per watt', value: f.value, unit: `${f.unit} per W` });
+    }
+  }
   stats.push({ key: 'Warnings', value: String(crit + warn), unit: '', tone: crit ? 'danger' : warn ? 'warn' : 'ok' });
   void pond;
   return stats;
@@ -126,6 +138,10 @@ export function ElementResult({ id, units }: { id: Id; units: UnitSystem }) {
     if (link.headLossM < 0) items.push({ k: 'Head added', v: fmtText(-link.headLossM, 'head', units) });
     else items.push({ k: 'Head loss', v: fmtText(link.headLossM, 'head', units) });
     if (link.velocityMs !== undefined) items.push({ k: 'Velocity', v: fmtText(link.velocityMs, 'velocity', units) });
+    if (link.energy) {
+      items.push({ k: 'Power', v: `${link.energy.electricalW.toFixed(0)} W` });
+      items.push({ k: 'Flow per watt', v: `${fmtText(link.energy.flowPerWattM3sPerW, 'flow', units)} per W` });
+    }
     confidence = link.confidence;
     basis = link.basis;
   }

@@ -268,6 +268,7 @@ function fail(status: SolveResult['status'], message: string, warnings: Warning[
     criticalPath: [],
     budget: [],
     warnings: [...warnings, { code: 'no-operating-point', severity: 'critical', message }],
+    unsupported: [],
     iterations: 0,
     residualM3s: Number.NaN,
   };
@@ -481,6 +482,7 @@ export function previewSolve(design: Design, opts: PreviewOptions = {}): SolveRe
     criticalPath: path,
     budget,
     warnings,
+    unsupported: [],
     iterations,
     residualM3s: 0,
   };

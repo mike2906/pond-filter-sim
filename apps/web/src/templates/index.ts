@@ -7,6 +7,8 @@ const curve = (pts: [number, number][]): CurvePoint[] => pts.map(([q, h]) => ({ 
 
 /** A mid-size pond pump, roughly 13 m³/h at zero head. Illustrative, not a real model. */
 const PUMP_13 = curve([[0, 4.6], [3, 4.2], [6, 3.5], [9, 2.5], [12, 1.1], [13.5, 0.3]]);
+/** Illustrative power draw for PUMP_13, W against flow. */
+const POWER_13 = [[0, 70], [6, 95], [12, 115], [13.5, 118]].map(([q, w]) => ({ flowM3s: m3h(q!), watts: w! }));
 /** A pressure-capable pump for bead filters. Illustrative. */
 const PUMP_BEAD = curve([[0, 9], [4, 8.2], [8, 6.8], [12, 4.6], [16, 1.6]]);
 
@@ -38,7 +40,7 @@ const gravityPump: Design = {
       id: 'k1-bed', kind: 'stage', name: 'K1 bed', from: 'k1', to: 'pump-bay', direction: 'up',
       stage: { type: 'static-media', media: 'k1', voidage: 0.8, equivalentDiameterM: 0.009, sphericity: 0.6, floating: true, geometry: { type: 'planar', flowAreaM2: 0.49, depthM: 0.35 } },
     },
-    { id: 'pump', kind: 'pump', name: 'Return pump', from: 'pump-bay', to: 'return-tee', model: 'Generic 13 m³/h', curve: PUMP_13, speedFraction: 1, intakeElevationM: -0.8 },
+    { id: 'pump', kind: 'pump', name: 'Return pump', from: 'pump-bay', to: 'return-tee', model: 'Generic 13 m³/h', curve: PUMP_13, power: POWER_13, speedFraction: 1, intakeElevationM: -0.8 },
     {
       id: 'return', kind: 'pipe', from: 'return-tee', to: 'pond', name: 'Return line',
       internalDiameterM: 0.0438, lengthM: 8, roughnessM: 1.5e-6,

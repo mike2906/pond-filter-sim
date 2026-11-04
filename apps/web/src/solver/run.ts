@@ -34,10 +34,10 @@ export function hasBand(c: UncertainSolveResult): boolean {
 
 const SAMPLES = 16;
 
-function needsPlaceholder(l: Link): boolean {
-  if (l.isolated) return false;
-  if (l.kind === 'airlift') return true;
-  return l.kind === 'stage' && l.stage.type !== 'generic' && !(l.measured && l.measured.points.length > 0);
+/** Links the engine reports it can't model yet. One cheap structural pass: solve() returns early with the list. */
+function unsupportedIds(design: Design): Set<Id> {
+  const r = solveWithUncertainty(design).likely;
+  return new Set(r.status === 'unsupported' ? r.unsupported : []);
 }
 
 /**
@@ -45,12 +45,12 @@ function needsPlaceholder(l: Link): boolean {
  * becomes a measured head-loss curve from the preview resistance, an airlift a
  * pump with the preview's placeholder line. Ids are kept so results map back.
  */
-function substitute(design: Design, airliftScale: number): { design: Design; replaced: Id[] } {
+function substitute(design: Design, airliftScale: number, ids: Set<Id>): { design: Design; replaced: Id[] } {
   const nu = waterKinematicViscosity(design.water.tempC);
   const replaced: Id[] = [];
   setAirliftScale(airliftScale);
   const links = design.links.map((l): Link => {
-    if (!needsPlaceholder(l)) return l;
+    if (!ids.has(l.id)) return l;
     replaced.push(l.id);
     if (l.kind === 'airlift') {
       const qMax = Math.max(1e-6, driverMaxFlow(l));
@@ -106,15 +106,18 @@ function preview(design: Design): UncertainSolveResult {
 }
 
 function engineCases(design: Design, initial?: SolveResult): { cases: UncertainSolveResult; replaced: Id[] } {
-  const sub = substitute(design, 1);
+  const first = solveWithUncertainty(design, initial ? { initial } : {});
+  if (first.likely.status !== 'unsupported') return { cases: first, replaced: [] };
+  const ids = new Set(first.likely.unsupported);
+  const sub = substitute(design, 1, ids);
   const base = solveWithUncertainty(sub.design, initial ? { initial } : {});
-  const hasAirlift = design.links.some((l) => l.kind === 'airlift' && !l.isolated);
+  const hasAirlift = design.links.some((l) => l.kind === 'airlift' && ids.has(l.id));
   const lab = (r: SolveResult) => label(r, design, sub.replaced);
   if (!hasAirlift) {
     return { cases: { likely: lab(base.likely), low: lab(base.low), high: lab(base.high), varied: base.varied }, replaced: sub.replaced };
   }
-  const low = solveWithUncertainty(substitute(design, 0.7).design).likely;
-  const high = solveWithUncertainty(substitute(design, 1.3).design).likely;
+  const low = solveWithUncertainty(substitute(design, 0.7, ids).design).likely;
+  const high = solveWithUncertainty(substitute(design, 1.3, ids).design).likely;
   return {
     cases: {
       likely: lab(base.likely),
@@ -144,7 +147,9 @@ export function runSolve(design: Design, initial?: SolveResult): Solved {
 /** Likely-case solve only, for sweeps and goal seek. */
 export function runSolveLikely(design: Design): SolveResult {
   try {
-    const sub = substitute(design, 1);
+    const ids = unsupportedIds(design);
+    if (ids.size === 0) return solveWithUncertainty(design).likely;
+    const sub = substitute(design, 1, ids);
     return label(solveWithUncertainty(sub.design).likely, design, sub.replaced);
   } catch {
     return previewSolve(design);
