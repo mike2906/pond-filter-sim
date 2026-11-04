@@ -25,19 +25,43 @@ export interface LinkEval {
   velocityMs?: number;
   regime?: 'submerged' | 'free' | 'drowned';
   pumpHeadM?: number;
+  /** Electrical input at this flow, W, when known. */
+  electricalW?: number;
   /** Set when an end condition matters: e.g. pipe inlet above water. */
-  note?: 'inlet-dry' | 'pump-dry' | 'pump-shutoff';
+  note?: 'inlet-dry' | 'pump-dry' | 'pump-starved' | 'pump-shutoff';
 }
 
 export interface LinkModel {
   evaluate(zUp: number, zDown: number): LinkEval;
   confidence: Confidence;
+  /** Confidence at a particular flow, when it depends on flow (e.g. beyond measured data). */
+  confidenceAt?: (q: number) => Confidence;
   basis: string;
 }
 
+/** A component the engine cannot model yet (a later milestone). Not a design error. */
 export class UnsupportedLinkError extends Error {
   linkId?: string;
 }
+
+/**
+ * C¹ ramp from 0 at x ≤ 0 to 1 at x ≥ 1. Used to fade flow in as a level rises
+ * past a pipe inlet or pump intake, so the solver never sees a step. Physically
+ * this stands in for the vortexing and air drawing that cut flow as an inlet
+ * nears the surface; it acts over RAMP_M only and is a numerical regularisation.
+ */
+function smoothstep(x: number): number {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+}
+const RAMP_M = 0.005;
+
+/**
+ * Small linear term added to every resistive loss (m per m³/s) so h(q) is
+ * strictly increasing and unbounded: the inversion always has a root, even for
+ * a stage with zero loss. 1e-4 m per m³/s is 3 µm at 100 m³/h.
+ */
+const REGULARISATION_M_PER_M3S = 1e-4;
 
 // ---------------------------------------------------------------------------
 // Resistive links: a loss h(q) > 0 for q > 0, odd in q.
@@ -51,12 +75,11 @@ interface Resistive {
 function invertLoss(r: Resistive, dh: number): number {
   if (dh === 0) return 0;
   const target = Math.abs(dh);
+  const h = (x: number) => r.loss(x).total + REGULARISATION_M_PER_M3S * x;
   let hi = 1e-4;
-  while (r.loss(hi).total < target) {
-    hi *= 2;
-    if (hi > 1e3) throw new RangeError('Flow out of range');
-  }
-  const q = brent((x) => r.loss(x).total - target, 0, hi, 1e-13);
+  // With the linear term h(1e7) ≥ 1000 m, so this always brackets a physical head.
+  while (h(hi) < target && hi < 1e7) hi *= 2;
+  const q = brent((x) => h(x) - target, 0, hi, 1e-13);
   return Math.sign(dh) * q;
 }
 
@@ -68,18 +91,34 @@ function invertLoss(r: Resistive, dh: number): number {
 function resistiveModel(r: Resistive, ends?: { inletM: number; outletM: number }): (zu: number, zd: number) => LinkEval {
   return (zu, zd) => {
     let dh: number;
+    /** Fade-in as the supplying level rises past the end it drains through. */
+    let ramp = 1;
+    /** Free fall from an end in air down to the receiving water. */
+    let drop = 0;
     if (!ends) dh = zu - zd;
     else {
       const forward = zu - Math.max(zd, ends.outletM);
       const reverse = zd - Math.max(zu, ends.inletM);
-      if (forward > 0 && zu > ends.inletM) dh = forward;
-      else if (reverse > 0 && zd > ends.outletM) dh = -reverse;
-      else return { q: 0, parts: [], ...(zu <= ends.inletM && zu > zd ? { note: 'inlet-dry' as const } : {}) };
+      if (forward > 0 && zu > ends.inletM) {
+        dh = forward;
+        ramp = smoothstep((zu - ends.inletM) / RAMP_M);
+        drop = Math.max(0, ends.outletM - zd);
+      } else if (reverse > 0 && zd > ends.outletM) {
+        dh = -reverse;
+        ramp = smoothstep((zd - ends.outletM) / RAMP_M);
+        drop = Math.max(0, ends.inletM - zu);
+      } else return { q: 0, parts: [], ...(zu <= ends.inletM && zu > zd ? { note: 'inlet-dry' as const } : {}) };
     }
-    const q = invertLoss(r, dh);
+    const q = invertLoss(r, dh) * ramp;
     const l = r.loss(Math.abs(q));
     const sign = Math.sign(q) || 1;
-    const out: LinkEval = { q, parts: l.parts.map((p) => ({ ...p, headLossM: p.headLossM * sign })) };
+    const parts: LossPart[] = l.parts.map((p) => ({ ...p, headLossM: p.headLossM * sign }));
+    // When the inlet is drawing air, the head the pipe itself does not use is lost at the inlet.
+    const starved = Math.abs(dh) - l.total;
+    if (ramp < 1 && starved > 0) parts.push({ kind: 'entrance', label: 'Inlet close to the surface, drawing air (estimate)', headLossM: sign * starved });
+    if (drop > 0) parts.push({ kind: 'outlet', label: 'Drop from outlet above the water', headLossM: sign * drop });
+    const out: LinkEval = { q, parts };
+    if (ramp < 1 && q !== 0) out.note = 'inlet-dry';
     if (l.velocityMs !== undefined) out.velocityMs = sign * l.velocityMs;
     return out;
   };
@@ -198,6 +237,7 @@ function grilleLoss(link: GrilleLink): Resistive {
 function valveLoss(link: ValveLink, ctx: LinkContext): Resistive {
   const type = link.valveType === 'ball' ? 'ball-valve' : 'gate-valve';
   const base = pipeLoss({ internalDiameterM: link.internalDiameterM, lengthM: 0, roughnessM: 0, fittings: [{ type, count: 1 }] }, ctx);
+  // Below 2% open the (1/open)² scaling is meaningless; a fully closed valve is handled by the caller.
   const open = Math.min(1, Math.max(0.02, link.openFraction));
   // Estimate: loss scales with (1/open)². Real part-open curves are valve specific.
   const scale = 1 / (open * open);
@@ -257,6 +297,31 @@ function stageLoss(link: StageLink): Resistive {
   throw new UnsupportedLinkError(`Stage type "${s.type}" arrives in milestone 4; give it a measured curve to use it now.`);
 }
 
+/**
+ * Perforated retaining screens as sharp-edged orifices on their open area:
+ * h = (q / (Cd · A_open · (1 − blocked)))² / 2g, Cd 0.61 by default
+ * (standard sharp-edged orifice; ISO 5167-2 / Idelchik 1986 §4 for thin perforated plates).
+ */
+const DEFAULT_CD_SCREEN = 0.61;
+function withScreens(r: Resistive, screens: NonNullable<StageLink['screens']>): Resistive {
+  if (screens.length === 0) return r;
+  return {
+    loss(q) {
+      const base = r.loss(q);
+      const parts = [...base.parts];
+      let total = base.total;
+      screens.forEach((sc, i) => {
+        const open = sc.openAreaM2 * (1 - Math.min(0.99, Math.max(0, sc.blockedFraction ?? 0)));
+        const v = Math.abs(q) / ((sc.dischargeCoefficient ?? DEFAULT_CD_SCREEN) * open);
+        const h = (v * v) / (2 * GRAVITY);
+        total += h;
+        parts.push({ kind: 'screen', label: screens.length > 1 ? `Retaining screen ${i + 1}` : 'Retaining screen', headLossM: h });
+      });
+      return { ...base, total, parts };
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Pumps
 // ---------------------------------------------------------------------------
@@ -264,24 +329,50 @@ function stageLoss(link: StageLink): Resistive {
 function pumpModel(link: PumpLink): LinkModel {
   const s = Math.max(0.05, link.speedFraction);
   const pts = [...link.curve].sort((a, b) => a.flowM3s - b.flowM3s);
-  if (pts.length < 2) throw new UnsupportedLinkError('A pump needs at least two curve points');
+  // checkDesign guarantees ≥ 2 points with increasing flow and a positive shutoff head.
+  if (pts.length < 2) throw new Error('A pump needs at least two curve points');
   const curve = monotoneCubic(pts.map((p) => p.flowM3s), pts.map((p) => p.headM));
+  const last = pts.at(-1) as { flowM3s: number; headM: number };
+  // Beyond the last point the curve must fall to zero head. Use the end slope if
+  // it already falls steeply enough, otherwise one that reaches zero within a
+  // further 20% of the last flow (a flat or rising tail would never end).
+  const tailSlope = Math.min(curve.slope(last.flowM3s), -Math.max(last.headM, 1e-3) / (0.2 * last.flowM3s));
+  const base = (q: number) => (q <= last.flowM3s ? curve.at(q) : last.headM + tailSlope * (q - last.flowM3s));
   // Affinity laws: H(q, s) = s² H₀(q/s).
-  const head = (q: number) => s * s * curve.at(q / s);
+  const head = (q: number) => s * s * base(q / s);
   const shutoff = head(0);
-  // Find where the (extrapolated) curve reaches zero head.
-  let qMax = (pts.at(-1)?.flowM3s ?? 0.01) * s;
-  while (head(qMax) > 0) qMax *= 1.5;
+  // Where the curve first reaches zero head.
+  let qMax: number;
+  if (last.headM > 0) qMax = s * (last.flowM3s - last.headM / tailSlope);
+  else {
+    const firstDry = pts.find((p) => p.headM <= 0) as { flowM3s: number };
+    qMax = shutoff > 0 ? brent(head, 0, s * firstDry.flowM3s, 1e-13) : 0;
+  }
+  const intake = link.intakeElevationM;
+  // Power curve with the affinity law P(q, s) = s³ P₀(q/s).
+  const pw = link.power && link.power.length > 0 ? [...link.power].sort((a, b) => a.flowM3s - b.flowM3s) : undefined;
+  const pwCurve = pw && pw.length >= 2 ? monotoneCubic(pw.map((p) => p.flowM3s), pw.map((p) => p.watts)) : undefined;
+  const watts = (q: number): number | undefined => {
+    if (!pw) return undefined;
+    const x = Math.min(Math.max(q / s, (pw[0] as { flowM3s: number }).flowM3s), (pw.at(-1) as { flowM3s: number }).flowM3s);
+    return s ** 3 * (pwCurve ? pwCurve.at(x) : (pw[0] as { watts: number }).watts);
+  };
+  const withPower = (e: LinkEval): LinkEval => {
+    const w = watts(e.q);
+    return w === undefined ? e : { ...e, electricalW: w };
+  };
   return {
     confidence: 'validated',
     basis: 'Manufacturer pump curve (monotone cubic), affinity laws for speed',
+    confidenceAt: (q) => (q > s * last.flowM3s * 1.001 ? 'extrapolated' : 'validated'),
     evaluate(zu, zd) {
-      if (zu < link.intakeElevationM) return { q: 0, parts: [], note: 'pump-dry', pumpHeadM: 0 };
+      if (zu <= intake || qMax <= 0) return withPower({ q: 0, parts: [], note: 'pump-dry', pumpHeadM: 0 });
+      // The pump starts drawing air as the level falls to its intake; fade flow out over the last few mm.
+      const ramp = smoothstep((zu - intake) / RAMP_M);
       const lift = zd - zu;
-      if (lift >= shutoff) return { q: 0, parts: [], note: 'pump-shutoff', pumpHeadM: shutoff };
-      if (lift <= head(qMax)) return { q: qMax, parts: [], pumpHeadM: head(qMax) };
-      const q = brent((x) => head(x) - lift, 0, qMax, 1e-13);
-      return { q, parts: [], pumpHeadM: head(q) };
+      if (lift >= shutoff) return withPower({ q: 0, parts: [], note: 'pump-shutoff', pumpHeadM: shutoff });
+      const q = lift <= head(qMax) ? qMax : brent((x) => head(x) - lift, 0, qMax, 1e-13);
+      return withPower({ q: q * ramp, parts: [], pumpHeadM: head(q), ...(ramp < 1 ? { note: 'pump-starved' as const } : {}) });
     },
   };
 }
@@ -314,12 +405,29 @@ function linkModelInner(link: Link, ctx: LinkContext): LinkModel {
       return { evaluate: resistiveModel(r), confidence: 'validated', basis: 'Kirschmer bar-rack loss' };
     }
     case 'valve': {
+      const standIn = link.valveType === 'butterfly' || link.valveType === 'slide';
+      const basis = standIn
+        ? `No published coefficients for a ${link.valveType} valve here yet; gate-valve 3-K coefficients stand in`
+        : link.openFraction >= 1 ? 'Darby 3-K' : 'Darby 3-K; part-open scaling (1/open)² is an estimate';
+      const confidence: Confidence = !standIn && link.openFraction >= 1 ? 'validated' : 'unvalidated';
+      if (link.openFraction <= 0) return { evaluate: () => ({ q: 0, parts: [] }), confidence: 'validated', basis: 'Closed valve' };
       const r = valveLoss(link, ctx);
-      return { evaluate: resistiveModel(r), confidence: link.openFraction >= 1 ? 'validated' : 'unvalidated', basis: 'Darby 3-K; part-open scaling is an estimate' };
+      return { evaluate: resistiveModel(r), confidence, basis };
     }
     case 'stage': {
-      const r = stageLoss(link);
-      return { evaluate: resistiveModel(r), confidence: link.measured ? 'validated' : 'extrapolated', basis: link.measured ? 'Your measured head-loss curve' : 'Generic loss coefficient' };
+      const r = withScreens(stageLoss(link), link.screens ?? []);
+      const measured = link.measured && link.measured.points.length > 0 ? link.measured : undefined;
+      const screens = link.screens?.length ? ' plus retaining screens as orifices' : '';
+      if (measured) {
+        const qMaxMeasured = Math.max(...measured.points.map((p) => p.flowM3s));
+        return {
+          evaluate: resistiveModel(r),
+          confidence: 'validated',
+          confidenceAt: (q) => (Math.abs(q) > qMaxMeasured * 1.001 ? 'extrapolated' : 'validated'),
+          basis: `Your measured head-loss curve, extended as q² beyond the last point${screens}`,
+        };
+      }
+      return { evaluate: resistiveModel(r), confidence: 'extrapolated', basis: `Generic loss coefficient${screens}` };
     }
     case 'pump':
       return pumpModel(link);

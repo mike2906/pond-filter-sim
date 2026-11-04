@@ -10,8 +10,8 @@ import type {
   SolveResult,
   Warning,
 } from '../model';
-import { waterKinematicViscosity } from '../water';
-import { linkModel, type LinkEval, type LinkModel } from './links';
+import { GRAVITY, waterDensity, waterKinematicViscosity } from '../water';
+import { linkModel, UnsupportedLinkError, type LinkEval, type LinkModel } from './links';
 
 /**
  * Steady-state network solver.
@@ -49,16 +49,40 @@ export function solveNetwork(design: Design, opts: SolveOptions = {}): SolveResu
     }
   }
 
-  const prepared: Prepared[] = design.links
-    .filter((l) => !l.isolated)
-    .map((link) => ({
+  const prepared: Prepared[] = [];
+  const unsupported: Warning[] = [];
+  for (const link of design.links.filter((l) => !l.isolated)) {
+    let model: LinkModel;
+    try {
+      model = linkModel(link, ctx);
+    } catch (e) {
+      if (!(e instanceof UnsupportedLinkError)) throw e;
+      unsupported.push({ code: 'not-implemented', severity: 'critical', targetId: link.id, message: `${link.name ?? link.id}: ${e.message}` });
+      continue;
+    }
+    prepared.push({
       link,
-      model: linkModel(link, ctx),
+      model,
       from: index.get(link.from) ?? -1,
       to: index.get(link.to) ?? -1,
       fromFixed: fixed.get(link.from) ?? 0,
       toFixed: fixed.get(link.to) ?? 0,
-    }));
+    });
+  }
+  if (unsupported.length > 0) {
+    // Report every component that is missing, not just the first, and solve nothing.
+    return {
+      status: 'unsupported',
+      nodes: {},
+      links: {},
+      criticalPath: [],
+      budget: [],
+      warnings: unsupported,
+      unsupported: unsupported.map((w) => w.targetId as Id),
+      iterations: 0,
+      residualM3s: Number.NaN,
+    };
+  }
 
   const n = unknownIds.length;
   const headOf = (x: Float64Array, i: number, fixedVal: number) => (i >= 0 ? (x[i] as number) : fixedVal);
@@ -108,6 +132,7 @@ export function solveNetwork(design: Design, opts: SolveOptions = {}): SolveResu
   const pondMean = fixed.size ? [...fixed.values()].reduce((a, b) => a + b, 0) / fixed.size : 0;
   for (const offset of [-0.01, -0.1, 0.3, -0.5, 1.5]) starts.push(new Float64Array(n).fill(pondMean + offset));
 
+  // Each start keeps its best iterate: only steps that reduce the residual are accepted.
   let best: { x: Float64Array; res: number; iterations: number } | null = null;
   for (const start of starts) {
     const x = Float64Array.from(start);
@@ -125,7 +150,7 @@ export function solveNetwork(design: Design, opts: SolveOptions = {}): SolveResu
         const trial = x.map((v, i) => v + lambda * (dx[i] as number));
         const rt = residual(trial);
         const nt = norm(rt);
-        if (nt < res * (1 - 1e-4 * lambda) || k === 29) {
+        if (nt < res * (1 - 1e-4 * lambda)) {
           x.set(trial);
           r = rt;
           res = nt;
@@ -142,7 +167,22 @@ export function solveNetwork(design: Design, opts: SolveOptions = {}): SolveResu
 
   const x = (best as { x: Float64Array }).x;
   const res = (best as { res: number }).res;
-  return buildResult(design, prepared, unknownIds, x, fixed, res, (best as { iterations: number }).iterations, res <= 1e-7);
+  const result = buildResult(design, prepared, unknownIds, x, fixed, res, (best as { iterations: number }).iterations, res <= 1e-7);
+  if (result.status === 'did-not-converge') {
+    // Point the user at the node where continuity fails worst.
+    const r = residual(x);
+    let worst = 0;
+    for (let i = 1; i < n; i++) if (Math.abs(r[i] as number) > Math.abs(r[worst] as number)) worst = i;
+    const id = unknownIds[worst];
+    const node = design.nodes.find((nd) => nd.id === id);
+    result.warnings.unshift({
+      code: 'did-not-converge',
+      severity: 'critical',
+      ...(id === undefined ? {} : { targetId: id }),
+      message: `The solver could not balance the flows${node ? `; the flow in and out of ${node.name} is off by ${(Math.abs(r[worst] as number) * 3600).toFixed(3)} m³/h` : ''}. Results shown are the closest it got.`,
+    });
+  }
+  return result;
 }
 
 function buildResult(
@@ -155,6 +195,7 @@ function buildResult(
   iterations: number,
   converged: boolean,
 ): SolveResult {
+  const density = waterDensity(design.water.tempC);
   const level = (id: Id) => fixed.get(id) ?? (x[unknownIds.indexOf(id)] as number);
   const warnings: Warning[] = [];
   const links: Record<Id, LinkResult> = {};
@@ -166,20 +207,30 @@ function buildResult(
     const zd = level(p.link.to);
     const e = p.model.evaluate(zu, zd);
     evals.set(p.link.id, e);
-    overall = weakest(overall, p.model.confidence);
+    const confidence = p.model.confidenceAt?.(e.q) ?? p.model.confidence;
+    overall = weakest(overall, confidence);
     const isPump = p.link.kind === 'pump';
     const lr: LinkResult = {
       flowM3s: e.q,
       headLossM: isPump ? -(e.pumpHeadM ?? 0) : zu - zd,
-      confidence: p.model.confidence,
+      confidence,
       basis: p.model.basis,
     };
     if (e.velocityMs !== undefined) lr.velocityMs = e.velocityMs;
     if (e.regime) lr.regime = e.regime;
-    if (isPump) lr.pump = { headM: e.pumpHeadM ?? 0 };
+    if (isPump) {
+      lr.pump = { headM: e.pumpHeadM ?? 0, ...(e.electricalW === undefined ? {} : { watts: e.electricalW }) };
+      if (e.electricalW !== undefined && e.electricalW > 0) {
+        // Lift actually produced across the pump (level to level), not the curve head.
+        const hydraulicW = Math.max(0, density * GRAVITY * e.q * (zd - zu));
+        lr.energy = { electricalW: e.electricalW, hydraulicW, flowPerWattM3sPerW: Math.max(0, e.q) / e.electricalW, wireToWater: hydraulicW / e.electricalW };
+      }
+    }
     links[p.link.id] = lr;
 
     const name = p.link.name ?? p.link.id;
+    if (confidence === 'extrapolated' && p.model.confidence === 'validated') warnings.push({ code: 'outside-validated-range', severity: 'info', targetId: p.link.id, message: `${name}: flow is beyond the curve's last point, so the result is extrapolated` });
+    if (e.note === 'pump-starved') warnings.push({ code: 'dry-run', severity: 'critical', targetId: p.link.id, message: `${name}: the level has fallen to the pump intake, so the pump is drawing air and the supply limits the flow` });
     if (e.note === 'pump-dry') warnings.push({ code: 'dry-run', severity: 'critical', targetId: p.link.id, message: `${name}: water level is below the pump intake` });
     if (e.note === 'pump-shutoff') warnings.push({ code: 'no-operating-point', severity: 'critical', targetId: p.link.id, message: `${name}: the pump cannot reach the head this system needs` });
     if (e.note === 'inlet-dry') warnings.push({ code: 'dry-run', severity: 'warning', targetId: p.link.id, message: `${name}: pipe inlet is above the water, so it draws air` });
@@ -206,7 +257,7 @@ function buildResult(
   }
 
   const criticalPath = findCriticalPath(design, links);
-  const budget = budgetFor(criticalPath, links, evals);
+  const budget = budgetFor(criticalPath, links, evals, design);
 
   let status: SolveResult['status'] = converged ? 'ok' : 'did-not-converge';
   const pumps = prepared.filter((p) => p.link.kind === 'pump');
@@ -217,7 +268,7 @@ function buildResult(
     }
   }
 
-  return { status, nodes, links, criticalPath, budget, warnings, iterations, residualM3s };
+  return { status, nodes, links, criticalPath, budget, warnings, unsupported: [], iterations, residualM3s };
 }
 
 /** The pond-to-pond path along the flow carrying the largest total loss. */
@@ -251,16 +302,19 @@ function findCriticalPath(design: Design, links: Record<Id, LinkResult>): Id[] {
   return best.path;
 }
 
-function budgetFor(path: Id[], links: Record<Id, LinkResult>, evals: Map<Id, LinkEval>): BudgetEntry[] {
+function budgetFor(path: Id[], links: Record<Id, LinkResult>, evals: Map<Id, LinkEval>, design: Design): BudgetEntry[] {
+  const kind = new Map(design.links.map((l) => [l.id, l.kind]));
   const entries = path
-    .map((id) => ({ id, r: links[id] as LinkResult, e: evals.get(id) }))
-    .filter(({ r }) => r.headLossM > 0)
-    .map(({ id, r, e }) => {
-      const parts = e?.parts.length ? e.parts.map((p) => ({ ...p, headLossM: Math.abs(p.headLossM) })) : [{ kind: 'opening' as const, label: 'Loss', headLossM: r.headLossM }];
-      // Parts come from the flow law at the solution; rescale so they sum exactly to the link's loss.
+    // Losses along the flow direction: a link on the path may carry flow to → from.
+    .map((id) => ({ id, loss: Math.abs((links[id] as LinkResult).headLossM), e: evals.get(id) }))
+    .filter(({ id, loss }) => loss > 0 && kind.get(id) !== 'pump' && kind.get(id) !== 'airlift')
+    .map(({ id, loss, e }) => {
+      const parts = e?.parts.length ? e.parts.map((p) => ({ ...p, headLossM: Math.abs(p.headLossM) })) : [{ kind: 'opening' as const, label: 'Loss', headLossM: loss }];
+      // Link laws report parts that sum to the loss up to the solver tolerance and
+      // the tiny regularisation term; rescale only that remainder away.
       const sum = parts.reduce((s, p) => s + p.headLossM, 0);
-      const k = sum > 0 ? r.headLossM / sum : 1;
-      return { linkId: id, headLossM: r.headLossM, share: 0, parts: parts.map((p) => ({ ...p, headLossM: p.headLossM * k })) };
+      const k = sum > 0 ? loss / sum : 1;
+      return { linkId: id, headLossM: loss, share: 0, parts: parts.map((p) => ({ ...p, headLossM: p.headLossM * k })) };
     });
   const total = entries.reduce((s, b) => s + b.headLossM, 0);
   for (const b of entries) b.share = total > 0 ? b.headLossM / total : 0;

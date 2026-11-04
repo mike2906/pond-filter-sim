@@ -39,7 +39,8 @@ describe('network solver', () => {
     expect(r.status).toBe('ok');
     const q = r.links.p?.flowM3s ?? 0;
     const loss = pipeFriction({ diameterM: 0.1036, lengthM: 10, roughnessM: 1.5e-6, flowM3s: q, kinematicViscosity: waterKinematicViscosity(15) }).frictionLossM;
-    expect(loss).toBeCloseTo(0.1, 8);
+    // Within 1 µm: the solver adds a 1e-4 m per m³/s regularisation term.
+    expect(loss).toBeCloseTo(0.1, 5);
   });
 
   it('solves a gravity-fed chamber with a pumped return', () => {
@@ -133,8 +134,10 @@ describe('network solver', () => {
 
   it('flags components that arrive in later milestones, pointing at the link', () => {
     const r = solve(simpleGravityAirlift);
-    expect(r.status).toBe('invalid-design');
-    expect(r.warnings[0]?.targetId).toBeDefined();
+    expect(r.status).toBe('unsupported');
+    expect(r.unsupported.length).toBeGreaterThan(0);
+    expect(r.warnings.every((w) => w.code === 'not-implemented' && w.targetId !== undefined)).toBe(true);
+    expect(r.warnings.map((w) => w.targetId)).toEqual(r.unsupported);
   });
 
   it('converges from a previous result in fewer iterations', () => {

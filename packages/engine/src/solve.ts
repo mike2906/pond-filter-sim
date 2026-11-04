@@ -1,4 +1,3 @@
-import { UnsupportedLinkError } from './hydraulics/links';
 import { solveNetwork } from './hydraulics/network';
 import { checkDesign, type Design, type DesignIssue, type SolveOptions, type SolveResult, type UncertainSolveResult } from './model';
 
@@ -8,6 +7,7 @@ const invalid = (issues: DesignIssue[]): SolveResult => ({
   links: {},
   criticalPath: [],
   budget: [],
+  unsupported: [],
   warnings: issues.map((i) => ({
     code: 'invalid-design' as const,
     severity: 'critical' as const,
@@ -20,8 +20,9 @@ const invalid = (issues: DesignIssue[]): SolveResult => ({
 
 /**
  * Solve a design's steady-state hydraulics. Pure and synchronous: safe to call
- * from a Web Worker. Components the engine can't model yet return
- * status 'invalid-design' with a message saying which milestone adds them.
+ * from a Web Worker. Components the engine can't model yet give status
+ * 'unsupported', listing every such link with a 'not-implemented' warning.
+ * Never throws: an internal failure comes back as 'did-not-converge'.
  */
 export function solve(design: Design, opts: SolveOptions = {}): SolveResult {
   const issues = checkDesign(design);
@@ -29,8 +30,11 @@ export function solve(design: Design, opts: SolveOptions = {}): SolveResult {
   try {
     return solveNetwork(design, opts);
   } catch (e) {
-    if (e instanceof UnsupportedLinkError) return invalid([{ path: e.linkId ?? '', message: e.message, ...(e.linkId ? { targetId: e.linkId } : {}) }]);
-    throw e;
+    return {
+      ...invalid([]),
+      status: 'did-not-converge',
+      warnings: [{ code: 'did-not-converge', severity: 'critical', message: `The solver failed: ${e instanceof Error ? e.message : String(e)}` }],
+    };
   }
 }
 
