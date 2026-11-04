@@ -281,11 +281,34 @@ export interface LinkResult {
   pump?: { headM: number; watts?: number };
 }
 
+export type LossPartKind =
+  | 'friction'
+  | 'fitting'
+  | 'entrance'
+  | 'exit'
+  | 'opening'
+  | 'weir'
+  | 'grille'
+  | 'screen'
+  | 'media'
+  | 'valve'
+  | 'outlet';
+
+/** One component of a link's head loss, e.g. pipe friction or a single fitting. */
+export interface LossPart {
+  kind: LossPartKind;
+  /** Human-readable, e.g. "Friction, 6 m of 110 mm" or "2 × long-radius 90° elbow". */
+  label: string;
+  headLossM: number;
+}
+
 export interface BudgetEntry {
   linkId: Id;
   headLossM: number;
   /** Share of the total head loss along the critical path, 0–1. */
   share: number;
+  /** Breakdown of this link's loss; parts sum to headLossM. */
+  parts: LossPart[];
 }
 
 export type WarningCode =
@@ -311,11 +334,23 @@ export interface SolveResult {
   status: SolveStatus;
   nodes: Record<Id, NodeResult>;
   links: Record<Id, LinkResult>;
+  /**
+   * Link ids, in flow order, of the path from pond back to pond that carries the
+   * most head loss. The budget is computed along this path.
+   */
+  criticalPath: Id[];
+  /** Largest losses first. */
   budget: BudgetEntry[];
   warnings: Warning[];
   iterations: number;
   /** Max continuity residual at the solution, m³/s. */
   residualM3s: number;
+}
+
+export interface SolveOptions {
+  /** A previous result to start from (continuation); speeds up and stabilises re-solves. */
+  initial?: SolveResult;
+  maxIterations?: number;
 }
 
 // ---------------------------------------------------------------------------
