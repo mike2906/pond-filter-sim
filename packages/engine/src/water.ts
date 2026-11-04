@@ -53,7 +53,7 @@ export function waterViscosity(tempC: number): number {
   return mu20 * 10 ** log10Ratio;
 }
 
-/** Kinematic viscosity of water, m²/s. */
+/** Kinematic viscosity of water, m²/s: ν = μ/ρ from Kestin et al. (1978) and Tanaka et al. (2001) above. */
 export function waterKinematicViscosity(tempC: number): number {
   return waterViscosity(tempC) / waterDensity(tempC);
 }
@@ -68,6 +68,7 @@ export interface WaterProperties {
   kinematicViscosity: number;
 }
 
+/** Density, viscosity and kinematic viscosity together; sources as for the individual functions above. */
 export function waterProperties(tempC: number): WaterProperties {
   const density = waterDensity(tempC);
   const viscosity = waterViscosity(tempC);

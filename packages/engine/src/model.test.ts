@@ -22,6 +22,17 @@ describe('checkDesign', () => {
     expect(messages).toContain('A link cannot start and end at the same node');
   });
 
+  it('rejects water temperatures outside 0–40 °C', () => {
+    const hot: Design = { ...simpleGravityAirlift, water: { tempC: 45 } };
+    expect(checkDesign(hot).map((i) => i.path)).toContain('water.tempC');
+    expect(checkDesign({ ...simpleGravityAirlift, water: { tempC: Number.NaN } }).length).toBeGreaterThan(0);
+  });
+
+  it('points issues at the offending link', () => {
+    const broken: Design = { ...simpleGravityAirlift, links: [{ id: 'w', kind: 'weir', from: 'k1', to: 'nowhere', crestM: 0, widthM: 1 }] };
+    expect(checkDesign(broken)[0]?.targetId).toBe('w');
+  });
+
   it('requires a pond', () => {
     const noPond: Design = { ...simpleGravityAirlift, nodes: simpleGravityAirlift.nodes.filter((n) => n.kind !== 'pond'), links: [], layout: {} };
     expect(checkDesign(noPond).map((i) => i.message)).toContain('A design needs at least one pond node');

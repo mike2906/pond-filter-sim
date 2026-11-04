@@ -17,7 +17,12 @@ export function solve(design: Design, opts: SolveOptions = {}): SolveResult {
       links: {},
       criticalPath: [],
       budget: [],
-      warnings: issues.map((i) => ({ code: 'no-operating-point', severity: 'critical', message: `${i.path}: ${i.message}` })),
+      warnings: issues.map((i) => ({
+        code: 'invalid-design' as const,
+        severity: 'critical' as const,
+        message: i.message,
+        ...(i.targetId === undefined ? {} : { targetId: i.targetId }),
+      })),
       iterations: 0,
       residualM3s: Number.NaN,
     };
