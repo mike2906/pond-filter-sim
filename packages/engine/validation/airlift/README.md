@@ -7,7 +7,7 @@ Published airlift pump measurements and correlations, collected to validate the 
 - **There is very little open, tabulated data at pond scale** (riser around 110 mm, lift under 30 cm). The classic sources (Nicklin 1963, Reinemann 1990, Kassab 2009, Parker & Suttle 1987, Loyless & Malone 1998, Kataoka & Ishii 1987) are paywalled or not online, so no values from them are included.
 - The best open leads are two **LSU theses from Malone's group** (Loyless 1995, 2 in riser; Hearn 2009, 20.3 cm riser at 30–46 cm lift). Both PDFs are open, but our fetch tool could not get past p. 51 of one and failed on the other. Getting those tables is the single most useful next step.
 - The Kataoka-Ishii branch that applies to pond water at 10–15 °C could not be read (see `correlations.md`). Don't make drift-flux the default until it is.
-- The most reliable validation for Mike's designs will be **his own measurements** on a real 110 mm airlift. `data/field_test_template.csv` is the format to record them in.
+- Mike has no airlift to measure, so validation has to rest on published data. That makes getting the LSU thesis tables (below) the critical path. `data/field_test_template.csv` stays as an optional format in case anyone contributes measurements later.
 
 ## Files
 
@@ -20,7 +20,7 @@ Published airlift pump measurements and correlations, collected to validate the 
 | `data/point_observations.csv` | Single operating points and ranges from text (incl. 102 mm / 25 cm lift / 227 L/min) |
 | `data/design_rules.csv` | Practitioner rules from Malone and Pfeiffer (velocity, submergence, gas:liquid) |
 | `data/figures_to_digitise.csv` | Figures holding the real curves, ranked by priority |
-| `data/field_test_template.csv` | Empty template for measured pond airlift tests |
+| `data/field_test_template.csv` | Optional empty template for anyone who later measures a pond airlift |
 
 ## Verification levels (`verification` column)
 
