@@ -32,7 +32,7 @@ export const simpleGravityAirlift: Design = {
       id: 'airlift', kind: 'airlift', from: 'return', to: 'pond',
       riserInternalDiameterM: 0.1036, inletElevationM: -0.95, injectionElevationM: -0.85, injector: 'collar',
       outlet: { type: 'open-top', elevationM: 0.03 },
-      airSupply: { type: 'fixed', litresPerMinute: 60 },
+      airSupply: { type: 'fixed', airFlowM3s: 0.001 }, // 60 L/min
       airLine: { internalDiameterM: 0.012, lengthM: 8 },
     },
   ],

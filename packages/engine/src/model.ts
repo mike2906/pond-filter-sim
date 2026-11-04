@@ -11,6 +11,8 @@
  * `schemaVersion` and add a migration.
  */
 
+import { WATER_T_MAX_C, WATER_T_MIN_C } from './water';
+
 export type Id = string;
 
 export const SCHEMA_VERSION = 1 as const;
@@ -196,8 +198,9 @@ export type AirliftOutlet =
   | { type: 'submerged'; elevationM: number };
 
 export type AirSupply =
-  | { type: 'fixed'; litresPerMinute: number }
-  | { type: 'air-pump'; model?: string; curve: { pressurePa: number; litresPerMinute: number }[] };
+  | { type: 'fixed'; airFlowM3s: number }
+  /** Delivered free-air flow against back-pressure (gauge). */
+  | { type: 'air-pump'; model?: string; curve: { pressurePa: number; airFlowM3s: number }[] };
 
 export interface AirliftLink extends LinkBase {
   kind: 'airlift';
@@ -233,11 +236,11 @@ export type Stage =
   | { type: 'vortex'; diameterM: number; vortexFactor?: number }
   | { type: 'settlement'; baffles: number }
   | { type: 'sieve'; apertureM: number; widthM: number; openAreaFraction: number }
-  | { type: 'drum'; meshM: number; screenAreaM2: number; openAreaFraction: number; backwashSetpointM: number; litresPerWash: number }
+  | { type: 'drum'; meshM: number; screenAreaM2: number; openAreaFraction: number; backwashSetpointM: number; washVolumeM3: number }
   | { type: 'brushes'; brushDiameterM: number; bristleDiameterM: number; count: number; rows: number; spacingM: number; lengthM: number }
   | { type: 'matting'; fibreDiameterM: number; porosity: number; geometry: MediaGeometry }
   | { type: 'static-media'; media: 'k1' | 'helix' | 'other'; voidage: number; equivalentDiameterM: number; sphericity: number; floating: boolean; geometry: MediaGeometry; mediaVolumeM3?: number }
-  | { type: 'moving-bed'; media: 'k1' | 'helix' | 'other'; fillFraction: number; screenAreaM2: number; screenOpenFraction: number; aerationLitresPerMinute: number }
+  | { type: 'moving-bed'; media: 'k1' | 'helix' | 'other'; fillFraction: number; screenAreaM2: number; screenOpenFraction: number; aerationAirFlowM3s: number }
   | { type: 'beads'; beadDiameterM: number; voidage: number; bedDepthM: number; bedAreaM2: number; valveK: number }
   | { type: 'gravel-bed'; particleDiameterM: number; voidage: number; geometry: MediaGeometry; manifold?: { portDiameterM: number; portCount: number } }
   | { type: 'generic'; k?: number; referenceAreaM2?: number; fixedHeadLossM?: number };
@@ -286,7 +289,7 @@ export interface LinkResult {
   /** Free-surface links only. */
   regime?: 'submerged' | 'free' | 'drowned';
   /** Airlifts only. */
-  airlift?: { airLitresPerMinute: number; injectionPressurePa: number; efficiency: number };
+  airlift?: { airFlowM3s: number; injectionPressurePa: number; efficiency: number };
   /** Pumps only. */
   pump?: { headM: number; watts?: number };
   /** Confidence of this link's own model. */
@@ -334,7 +337,8 @@ export type WarningCode =
   | 'bypass'
   | 'velocity-high'
   | 'no-operating-point'
-  | 'outside-validated-range';
+  | 'outside-validated-range'
+  | 'invalid-design';
 
 export interface Warning {
   code: WarningCode;
@@ -389,6 +393,8 @@ export interface SolveOptions {
 export interface DesignIssue {
   path: string;
   message: string;
+  /** Node or link the issue is about, when there is one. */
+  targetId?: Id;
 }
 
 /** Checks ids and references. Physical validation comes with the solver. */
@@ -398,17 +404,21 @@ export function checkDesign(design: Design): DesignIssue[] {
   const nodeIds = new Set<Id>();
 
   design.nodes.forEach((n, i) => {
-    if (ids.has(n.id)) issues.push({ path: `nodes[${i}].id`, message: `Duplicate id "${n.id}"` });
+    if (ids.has(n.id)) issues.push({ path: `nodes[${i}].id`, message: `Duplicate id "${n.id}"`, targetId: n.id });
     ids.add(n.id);
     nodeIds.add(n.id);
   });
   design.links.forEach((l, i) => {
-    if (ids.has(l.id)) issues.push({ path: `links[${i}].id`, message: `Duplicate id "${l.id}"` });
+    if (ids.has(l.id)) issues.push({ path: `links[${i}].id`, message: `Duplicate id "${l.id}"`, targetId: l.id });
     ids.add(l.id);
-    if (!nodeIds.has(l.from)) issues.push({ path: `links[${i}].from`, message: `Unknown node "${l.from}"` });
-    if (!nodeIds.has(l.to)) issues.push({ path: `links[${i}].to`, message: `Unknown node "${l.to}"` });
-    if (l.from === l.to) issues.push({ path: `links[${i}]`, message: 'A link cannot start and end at the same node' });
+    if (!nodeIds.has(l.from)) issues.push({ path: `links[${i}].from`, message: `Unknown node "${l.from}"`, targetId: l.id });
+    if (!nodeIds.has(l.to)) issues.push({ path: `links[${i}].to`, message: `Unknown node "${l.to}"`, targetId: l.id });
+    if (l.from === l.to) issues.push({ path: `links[${i}]`, message: 'A link cannot start and end at the same node', targetId: l.id });
   });
+  const t = design.water.tempC;
+  if (!Number.isFinite(t) || t < WATER_T_MIN_C || t > WATER_T_MAX_C) {
+    issues.push({ path: 'water.tempC', message: `Water temperature must be between ${WATER_T_MIN_C} and ${WATER_T_MAX_C} °C` });
+  }
   if (!design.nodes.some((n) => n.kind === 'pond')) {
     issues.push({ path: 'nodes', message: 'A design needs at least one pond node' });
   }
