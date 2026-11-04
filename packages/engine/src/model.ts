@@ -198,9 +198,9 @@ export type AirliftOutlet =
   | { type: 'submerged'; elevationM: number };
 
 export type AirSupply =
-  | { type: 'fixed'; airFlowM3s: number }
+  | { type: 'fixed'; airFlowM3s: number; /** Rated electrical input, W, for flow-per-watt results. */ electricalW?: number }
   /** Delivered free-air flow against back-pressure (gauge). */
-  | { type: 'air-pump'; model?: string; curve: { pressurePa: number; airFlowM3s: number }[] };
+  | { type: 'air-pump'; model?: string; curve: { pressurePa: number; airFlowM3s: number }[]; /** Rated electrical input, W (linear blowers draw near-constant power). */ electricalW?: number };
 
 export interface AirliftLink extends LinkBase {
   kind: 'airlift';
@@ -260,7 +260,13 @@ export interface StageLink extends LinkBase {
 // Solver result
 // ---------------------------------------------------------------------------
 
-export type SolveStatus = 'ok' | 'no-operating-point' | 'did-not-converge' | 'invalid-design';
+/**
+ * ok: converged. no-operating-point: no pump can deliver against the system.
+ * did-not-converge: the solver gave up; warnings say where. invalid-design: the
+ * design itself is broken (see warnings). unsupported: the design is fine but
+ * uses components the engine cannot model yet; `unsupported` lists them.
+ */
+export type SolveStatus = 'ok' | 'no-operating-point' | 'did-not-converge' | 'invalid-design' | 'unsupported';
 
 /**
  * How far a value can be trusted.
@@ -292,6 +298,21 @@ export interface LinkResult {
   airlift?: { airFlowM3s: number; injectionPressurePa: number; efficiency: number };
   /** Pumps only. */
   pump?: { headM: number; watts?: number };
+  /**
+   * Energy use of a flow source (pump or airlift), when its electrical power is
+   * known. Lets pumps and airlifts be compared directly. An airlift group's
+   * blower power is shared between its airlifts in proportion to air flow.
+   */
+  energy?: {
+    /** Wire input, W. */
+    electricalW: number;
+    /** Water power delivered, ρ g Q H, W (H = lift actually produced). */
+    hydraulicW: number;
+    /** Flow per watt, m³/s per W (the UI shows m³/h per W). */
+    flowPerWattM3sPerW: number;
+    /** hydraulicW / electricalW, 0–1. */
+    wireToWater: number;
+  };
   /** Confidence of this link's own model. */
   confidence: Confidence;
   /** What the model is, e.g. "Darcy-Weisbach + 3-K fittings" or "drift-flux, Kataoka-Ishii". */
@@ -338,7 +359,11 @@ export type WarningCode =
   | 'velocity-high'
   | 'no-operating-point'
   | 'outside-validated-range'
-  | 'invalid-design';
+  | 'invalid-design'
+  /** A component the engine cannot model yet; targetId is the link. */
+  | 'not-implemented'
+  /** Solver did not converge; targetId, when present, is where the residual is largest. */
+  | 'did-not-converge';
 
 export interface Warning {
   code: WarningCode;
@@ -360,6 +385,8 @@ export interface SolveResult {
   /** Largest losses first. */
   budget: BudgetEntry[];
   warnings: Warning[];
+  /** Links the engine cannot model yet (status 'unsupported'); empty otherwise. */
+  unsupported: Id[];
   iterations: number;
   /** Max continuity residual at the solution, m³/s. */
   residualM3s: number;
@@ -422,6 +449,23 @@ export function checkDesign(design: Design): DesignIssue[] {
   if (!design.nodes.some((n) => n.kind === 'pond')) {
     issues.push({ path: 'nodes', message: 'A design needs at least one pond node' });
   }
+  design.links.forEach((l, i) => {
+    if (l.kind === 'stage' && l.measured) {
+      const pts = l.measured.points;
+      const at = `links[${i}].measured.points`;
+      if (!pts.some((p) => p.flowM3s > 0)) issues.push({ path: at, message: 'A measured curve needs at least one point with flow above zero', targetId: l.id });
+      if (pts.some((p, k) => k > 0 && p.flowM3s <= (pts[k - 1] as { flowM3s: number }).flowM3s)) issues.push({ path: at, message: 'Measured flows must increase from one point to the next', targetId: l.id });
+      if (pts.some((p) => !(p.headLossM >= 0) || !(p.flowM3s >= 0))) issues.push({ path: at, message: 'Measured flows and head losses cannot be negative', targetId: l.id });
+    }
+    if (l.kind === 'pump') {
+      const pts = l.curve;
+      const at = `links[${i}].curve`;
+      if (pts.length < 2) issues.push({ path: at, message: 'A pump curve needs at least two points', targetId: l.id });
+      if (pts.some((p, k) => k > 0 && p.flowM3s <= (pts[k - 1] as { flowM3s: number }).flowM3s)) issues.push({ path: at, message: 'Pump curve flows must increase from one point to the next', targetId: l.id });
+      if (pts.some((p) => !(p.flowM3s >= 0))) issues.push({ path: at, message: 'Pump curve flows cannot be negative', targetId: l.id });
+      if (!((pts[0]?.headM ?? 0) > 0)) issues.push({ path: at, message: 'A pump curve must start with a positive head', targetId: l.id });
+    }
+  });
   for (const id of Object.keys(design.layout ?? {})) {
     if (!ids.has(id)) issues.push({ path: `layout.${id}`, message: `Layout entry for unknown id "${id}"` });
   }
