@@ -7,7 +7,20 @@ Published airlift pump measurements and correlations, collected to validate the 
 - **There is very little open, tabulated data at pond scale** (riser around 110 mm, lift under 30 cm). The classic sources (Nicklin 1963, Reinemann 1990, Kassab 2009, Parker & Suttle 1987, Loyless & Malone 1998, Kataoka & Ishii 1987) are paywalled or not online, so no values from them are included.
 - The best open leads are two **LSU theses from Malone's group** (Loyless 1995, 2 in riser; Hearn 2009, 20.3 cm riser at 30–46 cm lift). Both PDFs are open, but our fetch tool could not get past p. 51 of one and failed on the other. Getting those tables is the single most useful next step.
 - The Kataoka-Ishii branch that applies to pond water at 10–15 °C could not be read (see `correlations.md`). Don't make drift-flux the default until it is.
-- Mike has no airlift to measure, so validation has to rest on published data. That makes getting the LSU thesis tables (below) the critical path. `data/field_test_template.csv` stays as an optional format in case anyone contributes measurements later.
+- The best pond-scale data turned out to be **hobbyist forum tests** (see below), not papers. They're forum-grade but cover 110–200 mm risers at 0–40 cm lift.
+- Mike has no airlift to measure, so validation has to rest on published and forum data. The LSU thesis tables (below) would still be the best-documented data. `data/field_test_template.csv` stays as an optional format in case anyone contributes measurements later.
+
+## Hobbyist forum data (German and Dutch koi forums)
+
+`data/forum_hobbyist_tests.csv` holds 39 tests from German pond forums, graded `forum_own_test` (the poster measured it) or `forum_second_hand` (quoted from someone else). None of them measured air flow (only pump ratings), and most measured water flow by timing a bag, bucket or drum. Treat them as forum-grade. Even so, they are much closer to pond scale than anything in the literature:
+
+- **Belgian table** (14 rows, quoted on koi-live.de): 110/125/160 mm risers, 1.45–2.05 m long, lift at most 3 cm, 15–42 m³/h at 9–107 W. These are idealised near-zero-lift numbers.
+- **ThorstenC DN200 lift sweep** (7 rows): one rig, lift 5 to 40 cm, flow falling from 28 to 1.8 m³/h. This is the best curve found for checking how fast flow drops with lift.
+- **Zacky's 110 mm tests**: 17–18 m³/h into a bag with no back-pressure, but only 5.1 m³/h into a drum 3 cm above the water. Together with the DN200 sweep, this is the strongest evidence that a few cm of lift or outlet loss dominates low-lift airlift output. The engine has to model outlet losses and lift carefully.
+
+Quick sanity check (not a validation): for the first Belgian row (110 mm, 1.7 m, 15 m³/h, and assuming the SLL20 model number means roughly 20 L/min of air), a simple drift-flux estimate gives about 6 cm of driving head against about 2–3 cm of pipe and outlet losses, so the number is physically plausible.
+
+Blocked: the Dutch koivrienden.com and koiforum.nl refused automated access, and the German koi-gehlhaar.de forum has closed. If Mike can paste the koivrienden threads listed in `sources.csv`, they can be added.
 
 ## Files
 
@@ -17,6 +30,7 @@ Published airlift pump measurements and correlations, collected to validate the 
 | `correlations.md` | Equations found, with how far each was verified |
 | `data/gephardt2009_laccei_table2.csv` | 12 tabulated points, 1/2.5/4 in risers (secondary, see caveats) |
 | `data/riglin2011_table1E.csv` | 40 points, 4 in riser in a closed loop (low relevance, unverified digits) |
+| `data/forum_hobbyist_tests.csv` | 39 hobbyist forum tests, graded own-test vs second-hand |
 | `data/point_observations.csv` | Single operating points and ranges from text (incl. 102 mm / 25 cm lift / 227 L/min) |
 | `data/design_rules.csv` | Practitioner rules from Malone and Pfeiffer (velocity, submergence, gas:liquid) |
 | `data/figures_to_digitise.csv` | Figures holding the real curves, ranked by priority |
