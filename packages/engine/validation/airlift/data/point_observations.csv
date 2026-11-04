@@ -1,11 +1,11 @@
 source_id,riser_id_m,riser_shape,lift_m,submergence_m,submergence_ratio,injector,air_flow_lpm,water_flow_lpm,kind,quote_or_basis,verification
-pfeiffer_malone2008,0.102,round,0.254,,,"air at riser base",,227,measured_operating_point,"Fig.1 caption: 227 L/min airlift flow; tank-to-filter-outflow height difference approximately 25.4 cm; air:water ratio >1 gave no extra O2 transfer at 227 L/min",verified_text
+pfeiffer_malone2008,0.102,round,0.254,,,air at riser base,,227,measured_operating_point,Fig.1 caption: 227 L/min airlift flow; tank-to-filter-outflow height difference approximately 25.4 cm; air:water ratio >1 gave no extra O2 transfer at 227 L/min,verified_text
 hearn2009,0.203,round,0.305-0.457,,,,850-1415,623-1117,measured_range,"Abstract: liquid 623-1117 L/min for air 850-1415 L/min at lifts 30.5, 38.1, 45.7 cm; point pairings NOT given",abstract_verified
-mohammed2018,0.0508,round,,,0.45,,124.6,20.8,measured_operating_point,"'total water flow rate of the 5.08cm pump is 20.8 LPM at an air injection of 124.6 LPM'",verified_text
+mohammed2018,0.0508,round,,,0.45,,124.6,20.8,measured_operating_point,'total water flow rate of the 5.08cm pump is 20.8 LPM at an air injection of 124.6 LPM',verified_text
 mohammed2018,0.0508,round,,,0.45,,85,12.6,model_prediction,"model prediction in paper, NOT a measurement",verified_text
 mohammed2018,0.0508,round,,,0.45,,161,25,model_prediction,"model prediction in paper, NOT a measurement",verified_text
-alasadi2016,0.042,round,,,0.75,"radial holes, 90 deg",,"2794 kg/h (max)",measured_max,"conclusions: max water 2794/2371/1720 kg/h at Sr 0.75/0.6/0.5; max efficiency 36/32/30 %",verified_text
-alasadi2016,0.042,round,,,0.6,"radial holes, 90 deg",,"2371 kg/h (max)",measured_max,see above,verified_text
-alasadi2016,0.042,round,,,0.5,"radial holes, 90 deg",,"1720 kg/h (max)",measured_max,see above,verified_text
-dung2023,0.024,round,,,0.285,"cylindrical nozzle 15x20 mm","~13.3-15 (0.8-0.9 m3/h)",25-30,measured_range,"Abstract: dip coefficient 0.285 gives max 25-30 L/min at 0.8-0.9 m3/h; riser size for that alpha per text is 24 mm",verified_text
-tave2012,,round,,,,,,33.7,measured_mean,"mean +/- SD 33.697 +/- 5.563 L/min per tank (two airlifts per tank); geometry not in abstract",abstract_verified
+alasadi2016,0.042,round,,,0.75,"radial holes, 90 deg",,46.7,measured_max (converted from kg/h at 998 kg/m3),conclusions: max water 2794/2371/1720 kg/h at Sr 0.75/0.6/0.5; max efficiency 36/32/30 %,verified_text
+alasadi2016,0.042,round,,,0.6,"radial holes, 90 deg",,39.6,measured_max (converted from kg/h at 998 kg/m3),see above,verified_text
+alasadi2016,0.042,round,,,0.5,"radial holes, 90 deg",,28.7,measured_max (converted from kg/h at 998 kg/m3),see above,verified_text
+dung2023,0.024,round,,,0.285,cylindrical nozzle 15x20 mm,~13.3-15 (0.8-0.9 m3/h),25-30,measured_range,Abstract: dip coefficient 0.285 gives max 25-30 L/min at 0.8-0.9 m3/h; riser size for that alpha per text is 24 mm,verified_text
+tave2012,,round,,,,,,33.7,measured_mean,mean +/- SD 33.697 +/- 5.563 L/min per tank (two airlifts per tank); geometry not in abstract,abstract_verified

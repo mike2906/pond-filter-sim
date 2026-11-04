@@ -1,4 +1,4 @@
-source_id,row,air_flow_scfm,air_flow_std_lpm,orifice_reading_pct,water_flow_lb_s,water_flow_gpm_us,water_flow_lpm,air_inlet_pressure_psig,air_density_lbm_ft3,air_flow_actual_cfm_as_printed,riser_id_m,riser_lift_length_m_ambiguous,submergence_ratio,check_lbs_to_gpm_ok,verification
+source_id,row,air_flow_scfm,air_flow_std_lpm,orifice_reading_pct,water_flow_lb_s,water_flow_gpm_us,water_flow_lpm,air_inlet_pressure_psig,air_density_lbm_ft3,air_flow_cfm_as_printed_SUSPECT,riser_nominal_dia_m,riser_lift_length_m_ambiguous,submergence_ratio,check_lbs_to_gpm_ok,verification
 riglin2011,1,18.5,523.9,35.8,4.06,29.25,110.7,10.0,0.124,31.27,0.1016,3.328,0.873,True,model_summary_of_pdf_unverified_digits
 riglin2011,2,15.0,424.8,33.4,3.92,28.25,106.9,10.0,0.124,25.36,0.1016,3.328,0.873,True,model_summary_of_pdf_unverified_digits
 riglin2011,3,6.5,184.1,16.5,2.76,19.85,75.1,10.0,0.124,10.99,0.1016,3.328,0.873,True,model_summary_of_pdf_unverified_digits

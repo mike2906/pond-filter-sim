@@ -40,7 +40,7 @@ High-viscous case (N_muf > 2.25e-3), D* >= 30:
 | 20 | 2.73 | 40.3 | 2.25e-3 (boundary) |
 | 25 | 2.72 | 40.5 | 2.02e-3 (low-viscous branch) |
 
-If the high-viscous branch is simply V_gj+ = 0.92·(rho_g/rho_f)^-0.157 (as the legible digits suggest), it gives 2.71 at 20 °C against 2.65 from the low-viscous branch at N_muf = 2.25e-3, so the two would join almost continuously. That is a consistency hint, not a verification.
+If the high-viscous branch is simply V_gj+ = 0.92·(rho_g/rho_f)^-0.157 (as the legible digits suggest), it gives 2.64 at 20 °C against 2.65 from the low-viscous branch at N_muf = 2.25e-3, so the two branches would join continuously at the threshold. That is a consistency hint, not a verification.
 
 So for most pond temperatures the branch we could **not** read applies. The engine should not ship Kataoka-Ishii as the default until Eq. (3-9) is read from the scan. For reference, the low-viscous branch at 20 °C gives V_gj ≈ 0.43 m/s, against 0.35·sqrt(g·D) ≈ 0.36 m/s for a Taylor bubble in a 110 mm tube.
 

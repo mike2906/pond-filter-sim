@@ -1,4 +1,4 @@
-source_id,run,riser_id_in,riser_id_m,air_flow_cfm_as_printed,air_flow_m3_h,water_height_in,water_height_m,lift_above_surface_m,water_flow_lpm,water_flow_m3_h,water_flow_sd_lpm,verification
+source_id,run,riser_nominal_in,riser_nominal_dia_m,air_flow_cfm_as_printed,air_flow_m3_h,water_height_in,water_height_m,lift_above_surface_m,water_flow_lpm,water_flow_m3_h,water_flow_sd_lpm,verification
 gephardt2009,1,4,0.1016,15,25.49,15,0.381,0.1524,65.6,3.936,2.97,transcribed_from_text_extraction
 gephardt2009,2,4,0.1016,10,16.99,20,0.508,0.1524,61.3,3.678,2.35,transcribed_from_text_extraction
 gephardt2009,3,4,0.1016,10,16.99,10,0.254,0.1524,2.8,0.168,0.35,transcribed_from_text_extraction
