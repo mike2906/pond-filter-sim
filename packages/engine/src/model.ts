@@ -259,11 +259,21 @@ export interface StageLink extends LinkBase {
 
 export type SolveStatus = 'ok' | 'no-operating-point' | 'did-not-converge' | 'invalid-design';
 
+/**
+ * How far a value can be trusted.
+ * validated: inside the range of published data the model was tested on.
+ * extrapolated: the model is sound but the design is outside its tested range.
+ * unvalidated: no data supports this model at all (e.g. clogging, some airlifts).
+ */
+export type Confidence = 'validated' | 'extrapolated' | 'unvalidated';
+
 export interface NodeResult {
   /** Water level (free surface) or pressure head (junction), m relative to datum. */
   levelM: number;
   /** Level minus wall crest; positive means overflowing. Chambers only. */
   freeboardM?: number;
+  /** Weakest confidence of any model this level depends on. */
+  confidence: Confidence;
 }
 
 export interface LinkResult {
@@ -279,6 +289,10 @@ export interface LinkResult {
   airlift?: { airLitresPerMinute: number; injectionPressurePa: number; efficiency: number };
   /** Pumps only. */
   pump?: { headM: number; watts?: number };
+  /** Confidence of this link's own model. */
+  confidence: Confidence;
+  /** What the model is, e.g. "Darcy-Weisbach + 3-K fittings" or "drift-flux, Kataoka-Ishii". */
+  basis: string;
 }
 
 export type LossPartKind =
@@ -345,6 +359,21 @@ export interface SolveResult {
   iterations: number;
   /** Max continuity residual at the solution, m³/s. */
   residualM3s: number;
+}
+
+/**
+ * Uncertainty is shown by solving the whole design several times with each
+ * uncertain model at its low, likely and high setting, so every case stays
+ * physically consistent (a low airlift flow comes with the levels it causes).
+ * The UI draws any value as a band from `low` to `high` around `likely`.
+ * Cases are named by flow: `low` is the case with the lowest total flow.
+ */
+export interface UncertainSolveResult {
+  likely: SolveResult;
+  low: SolveResult;
+  high: SolveResult;
+  /** Which uncertain models were varied, and how, in plain language. */
+  varied: string[];
 }
 
 export interface SolveOptions {
